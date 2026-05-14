@@ -22,13 +22,13 @@ void loop() {
   digitalWrite(9, HIGH);
   delayMicroseconds(50);
   digitalWrite(9, LOW);
-  delayMicroseconds(500);
+  delayMicroseconds(800);
 
-  if (Serial.available() > 0) {
-    int val = Serial.parseInt();
-    analogWrite(RPWM, val);
-    Serial.print("PWM: ");
-    Serial.println(val);
-  }
+  // if (Serial.available() > 0) {
+  //   int val = Serial.parseInt();
+  //   analogWrite(RPWM, val);
+  //   Serial.print("PWM: ");
+  //   Serial.println(val);
+  // }
 }
 

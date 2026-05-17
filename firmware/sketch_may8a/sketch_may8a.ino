@@ -13,6 +13,9 @@ GyverOLED<SSD1306_128x64, OLED_BUFFER> oled;
 #define MOSFET_GATE_CTRL        (9)
 #define MOSFET_GATE_GND         (8)
 
+#define STEPPER_HEAD_STEP       (12)
+#define STEPPER_HEAD_EN         (13)
+
 int32_t spark_freq = 0;
 int32_t spark_t1_us = 50;
 int32_t spark_t0_us = 500;
@@ -109,6 +112,7 @@ void set_pulse() {
 
         TCCR1A &= ~((1 << COM1A1) | (1 << COM1A0));
         digitalWrite(MOSFET_GATE_CTRL, LOW);
+
         return;
     }
 
@@ -165,6 +169,12 @@ void setup() {
     pinMode(MOSFET_GATE_CTRL, OUTPUT);
     pinMode(MOSFET_GATE_GND, OUTPUT);
     digitalWrite(MOSFET_GATE_GND, LOW);
+
+    // Stepper
+    pinMode(STEPPER_HEAD_STEP, OUTPUT);
+    pinMode(STEPPER_HEAD_EN, OUTPUT);
+    digitalWrite(STEPPER_HEAD_STEP, LOW);
+    digitalWrite(STEPPER_HEAD_EN, HIGH);
 }
 
 void loop() {
@@ -174,5 +184,19 @@ void loop() {
         set_pulse();
         update_display();
         s_last_update_params_time_ms = millis();
+    }
+
+    if (spark_state) {
+        digitalWrite(STEPPER_HEAD_EN, LOW);
+    } else {
+        digitalWrite(STEPPER_HEAD_EN, HIGH);
+    }
+
+    static uint32_t s_last_step_time_ms = 0;
+    if (millis() - s_last_step_time_ms > 10) {
+        digitalWrite(STEPPER_HEAD_STEP, HIGH);
+        delay(1);
+        digitalWrite(STEPPER_HEAD_STEP, LOW);
+        s_last_step_time_ms = millis();
     }
 }

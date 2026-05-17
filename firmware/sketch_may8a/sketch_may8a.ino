@@ -1,6 +1,16 @@
-#include <GyverOLED.h>
+#include "SPI.h"
+#include "TFT_22_ILI9225.h"
 
-GyverOLED<SSD1306_128x64, OLED_BUFFER> oled; 
+#define TFT_RST 9
+#define TFT_RS  8
+#define TFT_CS  10  // SS
+#define TFT_SDI 11  // MOSI
+#define TFT_CLK 13  // SCK
+#define TFT_LED 3   // 0 if wired to +5V directly
+
+#define TFT_BRIGHTNESS 200 // Initial brightness of TFT backlight (optional)
+
+TFT_22_ILI9225 tft = TFT_22_ILI9225(TFT_RST, TFT_RS, TFT_CS, TFT_LED, TFT_BRIGHTNESS);
 
 
 #define T1_INC_BUTTON           (3)
@@ -13,7 +23,7 @@ GyverOLED<SSD1306_128x64, OLED_BUFFER> oled;
 #define MOSFET_GATE_CTRL        (9)
 #define MOSFET_GATE_GND         (8)
 
-#define STEPPER_HEAD_STEP       (12)
+#define STEPPER_HEAD_STEP       (11)
 #define STEPPER_HEAD_EN         (13)
 
 int32_t spark_freq = 0;
@@ -153,9 +163,7 @@ void set_pulse() {
 void setup() {
     Serial.begin(115200);
 
-    oled.init();
-    Wire.setClock(400000); 
-    oled.clear();
+    tft.begin();
 
     pinMode(T1_INC_BUTTON, INPUT_PULLUP); // T1 button +
     pinMode(T1_DEC_BUTTON, INPUT_PULLUP); // T1 button -
@@ -175,6 +183,24 @@ void setup() {
     pinMode(STEPPER_HEAD_EN, OUTPUT);
     digitalWrite(STEPPER_HEAD_STEP, LOW);
     digitalWrite(STEPPER_HEAD_EN, HIGH);
+    TCCR2A = 0;
+    TCCR2B = 0;
+    TCNT2  = 0;
+
+    // Setup mode: CTC (Clear Timer on Compare)
+    TCCR2A |= (1 << WGM21);
+
+    // Stup switch mode: Toggle, output 11 (A)
+    TCCR2A |= (1 << COM2A0);
+
+    // 4. Расчет частоты для режима Toggle:
+    // F = F_CPU / (2 * PRED * (OCR2A + 1))
+    // OCR2A = (16000000 / (2 * 1024 * 100)) - 1 = 77.125
+    OCR2A = 77; // ~100 Гц, duty cycle 50%
+
+    // Run timer: PRED = 1024 (CS22 = 1, CS21 = 0, CS20 = 1)
+    TCCR2B |= (1 << CS22) | (1 << CS20);
+    
 }
 
 void loop() {
@@ -190,13 +216,5 @@ void loop() {
         digitalWrite(STEPPER_HEAD_EN, LOW);
     } else {
         digitalWrite(STEPPER_HEAD_EN, HIGH);
-    }
-
-    static uint32_t s_last_step_time_ms = 0;
-    if (millis() - s_last_step_time_ms > 10) {
-        digitalWrite(STEPPER_HEAD_STEP, HIGH);
-        delay(1);
-        digitalWrite(STEPPER_HEAD_STEP, LOW);
-        s_last_step_time_ms = millis();
     }
 }

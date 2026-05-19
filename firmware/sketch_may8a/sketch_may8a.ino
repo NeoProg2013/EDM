@@ -1,17 +1,6 @@
-#include "SPI.h"
-#include "TFT_22_ILI9225.h"
+#include <GyverOLED.h>
 
-#define TFT_RST 9
-#define TFT_RS  8
-#define TFT_CS  10  // SS
-#define TFT_SDI 11  // MOSI
-#define TFT_CLK 13  // SCK
-#define TFT_LED 3   // 0 if wired to +5V directly
-
-#define TFT_BRIGHTNESS 200 // Initial brightness of TFT backlight (optional)
-
-TFT_22_ILI9225 tft = TFT_22_ILI9225(TFT_RST, TFT_RS, TFT_CS, TFT_LED, TFT_BRIGHTNESS);
-
+GyverOLED<SSD1306_128x64, OLED_BUFFER> oled; 
 
 #define T1_INC_BUTTON           (3)
 #define T1_DEC_BUTTON           (6)
@@ -25,6 +14,8 @@ TFT_22_ILI9225 tft = TFT_22_ILI9225(TFT_RST, TFT_RS, TFT_CS, TFT_LED, TFT_BRIGHT
 
 #define STEPPER_HEAD_STEP       (11)
 #define STEPPER_HEAD_EN         (13)
+
+#define SPART_SHORT_CIRCUIT     (A1)
 
 int32_t spark_freq = 0;
 int32_t spark_t1_us = 50;
@@ -163,7 +154,9 @@ void set_pulse() {
 void setup() {
     Serial.begin(115200);
 
-    tft.begin();
+    oled.init();
+    Wire.setClock(400000); 
+    oled.clear();
 
     pinMode(T1_INC_BUTTON, INPUT_PULLUP); // T1 button +
     pinMode(T1_DEC_BUTTON, INPUT_PULLUP); // T1 button -
@@ -172,6 +165,8 @@ void setup() {
     pinMode(START_STOP_BUTTON, INPUT_PULLUP); // Start / stop button
     pinMode(KEYBOARD_GND, OUTPUT);
     digitalWrite(KEYBOARD_GND, LOW);
+
+    pinMode(SPART_SHORT_CIRCUIT, INPUT);
 
     // MOSFET
     pinMode(MOSFET_GATE_CTRL, OUTPUT);
@@ -216,5 +211,36 @@ void loop() {
         digitalWrite(STEPPER_HEAD_EN, LOW);
     } else {
         digitalWrite(STEPPER_HEAD_EN, HIGH);
+    }
+
+    static uint32_t s_spark_meas_time_us = 0;
+    static uint32_t s_spark_data_acc = 0;
+    static uint32_t s_spark_data_n = 0;
+    static uint32_t s_no_spark_counter = 0;
+    if (micros() - s_spark_meas_time_us > 5000) {
+        if (s_spark_data_n > 0) {
+            int avg = s_spark_data_acc / s_spark_data_n;
+            Serial.println(avg);
+            
+            s_spark_data_acc = 0;
+            s_spark_data_n = 0;
+
+            if (avg < 160 && spark_state) {
+                ++s_no_spark_counter;
+                if (s_no_spark_counter > 5) {
+                    spark_state = false;
+                    s_no_spark_counter = 0;
+                }
+            } else {
+                s_no_spark_counter = 0;
+            }
+        }
+
+        s_spark_meas_time_us = micros();
+    }
+
+    if (spark_state) {
+        s_spark_data_acc += analogRead(SPART_SHORT_CIRCUIT);
+        ++s_spark_data_n;
     }
 }

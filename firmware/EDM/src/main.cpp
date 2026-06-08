@@ -347,11 +347,11 @@ void loop() {
 
             if (spark_voltage < 160 && spark_state) {
                 ++s_no_spark_counter;
-                if (s_no_spark_counter > 5) {
-                    spark_state = false;
-                    is_short_circuit = true;
-                    s_no_spark_counter = 0;
-                }
+                // if (s_no_spark_counter > 5) {
+                //     spark_state = false;
+                //     is_short_circuit = true;
+                //     s_no_spark_counter = 0;
+                // }
             } else {
                 s_no_spark_counter = 0;
             }

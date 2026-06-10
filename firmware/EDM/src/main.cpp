@@ -43,8 +43,10 @@ int32_t spark_t1_us   = 10;
 int32_t spark_t0_us   = 500;
 int32_t spark_current = 0;
 int32_t spark_voltage = 0;
-bool spark_state      = false;
+bool spark_generator_state = false;
 bool is_short_circuit = false;
+
+uint32_t spark_period_counter = 0;
 
 
 int32_t feeder_period_us = 1000000UL / 100;
@@ -65,7 +67,7 @@ void keyboard_process() {
     static bool s_last_start_stop_button_state = HIGH;
     bool v = digitalRead(START_STOP_BUTTON);
     if (v == LOW && s_last_start_stop_button_state == HIGH) {
-        spark_state = !spark_state;
+        spark_generator_state = !spark_generator_state;
     }
     s_last_start_stop_button_state = v;
 
@@ -117,19 +119,19 @@ void update_display() {
 
     // State
     static int32_t s_last_state = -1;
-    if (s_last_state != spark_state) {
+    if (s_last_state != spark_generator_state) {
         tft.fillRectangle(5, 5, 176, 21, COLOR_BLACK);
         if (is_short_circuit) {
             tft.drawText(5, 5, "PROTECTION", COLOR_RED);
         } else {
-            if (spark_state) {
+            if (spark_generator_state) {
                 tft.drawText(5, 5, "ENABLED", COLOR_GREEN);
             } else {
                 tft.drawText(5, 5, "DISABLED", COLOR_RED);
             }
         }
         
-        s_last_state = spark_state;
+        s_last_state = spark_generator_state;
     }
 
     tft.setFont(Terminal6x8, true);
@@ -223,13 +225,13 @@ void update_mosfet_ctrl_pwm() {
     static int32_t s_last_t0_us = 0;
     static bool    s_last_state = 0;
 
-    if (s_last_t1_us != spark_t1_us || s_last_t0_us != spark_t0_us || s_last_state != spark_state) {
+    if (s_last_t1_us != spark_t1_us || s_last_t0_us != spark_t0_us || s_last_state != spark_generator_state) {
         if (spark_t1_us <= 0 || spark_t0_us <= 0) {
             return;
         }
         s_last_t1_us = spark_t1_us;
         s_last_t0_us = spark_t0_us;
-        s_last_state = spark_state;
+        s_last_state = spark_generator_state;
 
         Serial.print("update MOSFET CTRL PWM: ");
         Serial.print(spark_t1_us);
@@ -311,6 +313,20 @@ void setup() {
     digitalWrite(MOSFET_GATE_CTRL, LOW);
     pinMode(MOSFET_GATE_GND, OUTPUT);
     digitalWrite(MOSFET_GATE_GND, LOW);
+
+    // Enable IRQ for gate PWM
+    PWM->PWM_IER1 = (1 << MOSFET_GATE_CTRL_PWM_CH);
+    NVIC_DisableIRQ(PWM_IRQn);
+    NVIC_ClearPendingIRQ(PWM_IRQn);
+    NVIC_SetPriority(PWM_IRQn, 0);
+    NVIC_EnableIRQ(PWM_IRQn);
+}
+
+void PWM_Handler(void)  {
+    uint32_t status = PWM->PWM_ISR1; 
+    if (status & (1 << MOSFET_GATE_CTRL_PWM_CH)) {
+        ++spark_period_counter;
+    }
 }
 
 void loop() {
@@ -323,67 +339,58 @@ void loop() {
         update_display();
         s_last_update_params_time_ms = millis();
     }
-    if (spark_state) {
+    if (spark_generator_state) {
         is_short_circuit = false;
     }
 
     //
     // Short circuit control
-    static uint32_t s_spark_meas_time_us = 0;
+    static uint32_t s_prev_spark_period_counter = 0;
     static uint32_t s_spark_data_acc = 0;
     static uint32_t s_spark_data_n = 0;
-    static uint32_t s_no_spark_counter = 0;
-    if (micros() - s_spark_meas_time_us > 5000) {
+    if (spark_period_counter != s_prev_spark_period_counter) {
         if (s_spark_data_n > 0) {
             spark_voltage = s_spark_data_acc / s_spark_data_n;
-            Serial.print(spark_voltage);
-            Serial.print(' ');
-            Serial.print(spark_t1_us);
-            Serial.print(' ');
-            Serial.println(spark_t0_us);
-            
             s_spark_data_acc = 0;
             s_spark_data_n = 0;
-
-            if (spark_voltage < 160 && spark_state) {
+            
+            static uint32_t s_no_spark_counter = 0;
+            if (spark_voltage == 0 && spark_generator_state) {
                 ++s_no_spark_counter;
-                // if (s_no_spark_counter > 5) {
-                //     spark_state = false;
-                //     is_short_circuit = true;
-                //     s_no_spark_counter = 0;
-                // }
+                if (s_no_spark_counter > 5) {
+                    spark_generator_state = false;
+                    is_short_circuit = true;
+                    s_no_spark_counter = 0;
+                }
             } else {
                 s_no_spark_counter = 0;
             }
         }
 
-        s_spark_meas_time_us = micros();
+        s_prev_spark_period_counter = spark_period_counter;
     }
-    if (spark_state) {
-        s_spark_data_acc += analogRead(SPART_SHORT_CIRCUIT);
-        ++s_spark_data_n;
-    }
+
+    s_spark_data_acc += analogRead(SPART_SHORT_CIRCUIT);
+    ++s_spark_data_n;
 
     // 
     // Tension control
     static uint32_t s_tension_acc = 0;
     static uint32_t s_tension_acc_n = 0;
-    // s_tension_acc += abs(head_tension.get_value());
+    s_tension_acc += abs(head_tension.get_value());
     s_tension_acc_n++;
 
     static uint32_t s_last_tension_control_ms = 0;
-    if (spark_state) {
+    if (spark_generator_state) {
         if (millis() - s_last_tension_control_ms > 100) {
             int32_t d = 1001000 - s_tension_acc / s_tension_acc_n;
             if (d < -100) {
                 brake_period_us = constrain(brake_period_us - 10, 2000, 15000);
-                PWMC_SetPeriod(PWM, HEAD_BRAKE_PWM_CH, brake_period_us);
-                PWMC_SetDutyCycle(PWM, HEAD_BRAKE_PWM_CH, brake_period_us / 2);
             } else if (d > 100) {
                 brake_period_us = constrain(brake_period_us + 10, 2000, 15000);
-                PWMC_SetPeriod(PWM, HEAD_BRAKE_PWM_CH, brake_period_us);
-                PWMC_SetDutyCycle(PWM, HEAD_BRAKE_PWM_CH, brake_period_us / 2);
             }
+            PWMC_SetPeriod(PWM, HEAD_BRAKE_PWM_CH, brake_period_us);
+            PWMC_SetDutyCycle(PWM, HEAD_BRAKE_PWM_CH, brake_period_us / 2);
 
             tension_bins = s_tension_acc / s_tension_acc_n;
             tension_g = tension_bins * TENSION_SCALE;
@@ -400,7 +407,7 @@ void loop() {
     //
     // Shutdown
     static bool is_periph_enabled = false;
-    if (!spark_state) {
+    if (!spark_generator_state) {
         if (is_periph_enabled) {
             PWMC_DisableChannel(PWM, MOSFET_GATE_CTRL_PWM_CH);
             pinMode(MOSFET_GATE_CTRL, OUTPUT);

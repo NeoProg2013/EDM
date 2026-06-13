@@ -30,7 +30,10 @@
 #define MOSFET_GATE_CTRL_PWM_CH   (7)
 #define MOSFET_GATE_GND           (5)
 
-#define SPART_SHORT_CIRCUIT       (A1)
+// #define SPART_SHORT_CIRCUIT       (A1)
+
+
+#define SPART_SHORT_CIRCUIT       (ADC_CHANNEL_6) // A1
 
 
 
@@ -50,7 +53,7 @@ uint32_t spark_period_counter = 0;
 
 
 int32_t feeder_period_us = 1000000UL / 100;
-int32_t brake_period_us = 1000000UL / 95;
+int32_t brake_period_us = 1000000UL / 80;
 
 #define TENSION_SCALE       (1700) // 1700 bins = 1g
 int32_t tension_bins = 0;
@@ -72,8 +75,8 @@ void keyboard_process() {
     s_last_start_stop_button_state = v;
 
     // Validate values
-    if (spark_t1_us < 10) spark_t1_us = 10;
-    if (spark_t0_us < 10) spark_t0_us = 10;
+    if (spark_t1_us < 5)   spark_t1_us = 5;
+    if (spark_t0_us < 100) spark_t0_us = 100;
 
     // Calc spark parameters
     spark_freq = 1000000 / (spark_t1_us + spark_t0_us);
@@ -248,7 +251,16 @@ void update_mosfet_ctrl_pwm() {
 void setup() {
     // Enable PWM periph
     pmc_enable_periph_clk(ID_PWM);
-    PWMC_ConfigureClocks(1000000UL, 0, VARIANT_MCK);
+    pmc_enable_periph_clk(ID_ADC);
+    PWMC_ConfigureClocks(1000000UL, 0, VARIANT_MCK); // 1 tick = 1 us
+
+    // Setup ADC
+    adc_init(ADC, VARIANT_MCK, 21000000UL, ADC_STARTUP_NORM); // 21 MHz
+    adc_set_resolution(ADC, ADC_12_BITS); // 12 bit resolution
+    adc_configure_timing(ADC, 0, ADC_SETTLING_TIME_3, 1);
+    ADC->ADC_MR |= ADC_MR_FREERUN_ON;  // Enable Free Running mode
+    adc_enable_channel(ADC, SPART_SHORT_CIRCUIT); // Enable ADC channel
+    adc_start(ADC); // Start ADC
 
     Serial.begin(115200);
 
@@ -266,7 +278,7 @@ void setup() {
     pinMode(START_STOP_BUTTON, INPUT_PULLUP); // Start / stop button
 
     // Feedback
-    pinMode(SPART_SHORT_CIRCUIT, INPUT);
+    // pinMode(SPART_SHORT_CIRCUIT, INPUT);
 
     //
     // Setup head tension sensor
@@ -370,30 +382,35 @@ void loop() {
         s_prev_spark_period_counter = spark_period_counter;
     }
 
-    s_spark_data_acc += analogRead(SPART_SHORT_CIRCUIT);
+    // s_spark_data_acc += analogRead(SPART_SHORT_CIRCUIT);
+    s_spark_data_acc += adc_get_channel_value(ADC, SPART_SHORT_CIRCUIT);
     ++s_spark_data_n;
 
     // 
     // Tension control
     static uint32_t s_tension_acc = 0;
     static uint32_t s_tension_acc_n = 0;
-    s_tension_acc += abs(head_tension.get_value());
-    s_tension_acc_n++;
+    if (head_tension.is_ready()) {
+        s_tension_acc += abs(head_tension.read());
+        s_tension_acc_n++;
+    }
 
     static uint32_t s_last_tension_control_ms = 0;
     if (spark_generator_state) {
         if (millis() - s_last_tension_control_ms > 100) {
-            int32_t d = 1001000 - s_tension_acc / s_tension_acc_n;
-            if (d < -100) {
-                brake_period_us = constrain(brake_period_us - 10, 2000, 15000);
-            } else if (d > 100) {
-                brake_period_us = constrain(brake_period_us + 10, 2000, 15000);
-            }
-            PWMC_SetPeriod(PWM, HEAD_BRAKE_PWM_CH, brake_period_us);
-            PWMC_SetDutyCycle(PWM, HEAD_BRAKE_PWM_CH, brake_period_us / 2);
+            if (s_tension_acc_n > 0) {
+                int32_t d = 1001000 - s_tension_acc / s_tension_acc_n;
+                if (d < -100) {
+                    brake_period_us = constrain(brake_period_us - 10, 2000, 15000);
+                } else if (d > 100) {
+                    brake_period_us = constrain(brake_period_us + 10, 2000, 15000);
+                }
+                PWMC_SetPeriod(PWM, HEAD_BRAKE_PWM_CH, brake_period_us);
+                PWMC_SetDutyCycle(PWM, HEAD_BRAKE_PWM_CH, brake_period_us / 2);
 
-            tension_bins = s_tension_acc / s_tension_acc_n;
-            tension_g = tension_bins * TENSION_SCALE;
+                tension_bins = s_tension_acc / s_tension_acc_n;
+                tension_g = tension_bins * TENSION_SCALE;
+            }
 
             s_last_tension_control_ms = millis();
             s_tension_acc = 0;

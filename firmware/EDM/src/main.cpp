@@ -30,10 +30,8 @@
 #define MOSFET_GATE_CTRL_PWM_CH   (7)
 #define MOSFET_GATE_GND           (5)
 
-// #define SPART_SHORT_CIRCUIT       (A1)
-
-
-#define SPART_SHORT_CIRCUIT       (ADC_CHANNEL_6) // A1
+#define SPART_SHORT_CIRCUIT       (A1)
+// #define SPART_SHORT_CIRCUIT       (ADC_CHANNEL_6) // A1
 
 
 
@@ -255,12 +253,12 @@ void setup() {
     PWMC_ConfigureClocks(1000000UL, 0, VARIANT_MCK); // 1 tick = 1 us
 
     // Setup ADC
-    adc_init(ADC, VARIANT_MCK, 21000000UL, ADC_STARTUP_NORM); // 21 MHz
-    adc_set_resolution(ADC, ADC_12_BITS); // 12 bit resolution
-    adc_configure_timing(ADC, 0, ADC_SETTLING_TIME_3, 1);
-    ADC->ADC_MR |= ADC_MR_FREERUN_ON;  // Enable Free Running mode
-    adc_enable_channel(ADC, SPART_SHORT_CIRCUIT); // Enable ADC channel
-    adc_start(ADC); // Start ADC
+    // adc_init(ADC, VARIANT_MCK, 21000000UL, ADC_STARTUP_NORM); // 21 MHz
+    // adc_set_resolution(ADC, ADC_12_BITS); // 12 bit resolution
+    // adc_configure_timing(ADC, 0, ADC_SETTLING_TIME_3, 1);
+    // ADC->ADC_MR |= ADC_MR_FREERUN_ON;  // Enable Free Running mode
+    // adc_enable_channel(ADC, SPART_SHORT_CIRCUIT); // Enable ADC channel
+    // adc_start(ADC); // Start ADC
 
     Serial.begin(115200);
 
@@ -278,7 +276,7 @@ void setup() {
     pinMode(START_STOP_BUTTON, INPUT_PULLUP); // Start / stop button
 
     // Feedback
-    // pinMode(SPART_SHORT_CIRCUIT, INPUT);
+    pinMode(SPART_SHORT_CIRCUIT, INPUT);
 
     //
     // Setup head tension sensor
@@ -382,8 +380,8 @@ void loop() {
         s_prev_spark_period_counter = spark_period_counter;
     }
 
-    // s_spark_data_acc += analogRead(SPART_SHORT_CIRCUIT);
-    s_spark_data_acc += adc_get_channel_value(ADC, SPART_SHORT_CIRCUIT);
+    s_spark_data_acc += analogRead(SPART_SHORT_CIRCUIT);
+    // s_spark_data_acc += adc_get_channel_value(ADC, SPART_SHORT_CIRCUIT);
     ++s_spark_data_n;
 
     // 

@@ -1,1 +1,3 @@
-*.bak
+blueprint/*.bak
+hardware/History
+hardware/Project Logs for ControlBoard

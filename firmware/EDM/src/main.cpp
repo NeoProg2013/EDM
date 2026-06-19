@@ -34,6 +34,12 @@
 // #define SPART_SHORT_CIRCUIT       (ADC_CHANNEL_6) // A1
 
 
+#define DEBUG_PIN_1                 (13)
+#define DEBUG_PIN_2                 (12)
+#define DEBUG_PIN_3                 (11)
+#define DEBUG_PIN_4                 (10)
+
+
 
 
 TFT_22_ILI9225 tft(TFT_RST, TFT_RS, TFT_CS, 0, 255);
@@ -82,6 +88,9 @@ void keyboard_process() {
 
 void update_display() {
     static bool s_is_init = false;
+    static uint32_t s_call_counter = 0;
+
+    ++s_call_counter;
     
     if (!s_is_init) {
         tft.clear();
@@ -119,49 +128,61 @@ void update_display() {
     tft.setFont(Terminal11x16, true);
 
     // State
-    static int32_t s_last_state = -1;
-    if (s_last_state != spark_generator_state) {
-        tft.fillRectangle(5, 5, 176, 21, COLOR_BLACK);
-        if (is_short_circuit) {
-            tft.drawText(5, 5, "PROTECTION", COLOR_RED);
-        } else {
-            if (spark_generator_state) {
-                tft.drawText(5, 5, "ENABLED", COLOR_GREEN);
+    if (s_call_counter == 1) {
+        static int32_t s_last_state = -1;
+        if (s_last_state != spark_generator_state) {
+            tft.fillRectangle(5, 5, 176, 21, COLOR_BLACK);
+            if (is_short_circuit) {
+                tft.drawText(5, 5, "PROTECTION", COLOR_RED);
             } else {
-                tft.drawText(5, 5, "DISABLED", COLOR_RED);
+                if (spark_generator_state) {
+                    tft.drawText(5, 5, "ENABLED", COLOR_GREEN);
+                } else {
+                    tft.drawText(5, 5, "DISABLED", COLOR_RED);
+                }
             }
+            
+            s_last_state = spark_generator_state;
         }
-        
-        s_last_state = spark_generator_state;
+        return;
     }
 
     tft.setFont(Terminal6x8, true);
     int y = 40;
 
     // Freq
-    static int32_t s_last_freq = -1;
-    if (s_last_freq != spark_freq) {
-        tft.fillRectangle(106, y, 150, y + 8, COLOR_BLACK);
-        tft.drawText(106, y, String(spark_freq), COLOR_YELLOW);
-        s_last_freq = spark_freq;
+    if (s_call_counter == 2) {
+        static int32_t s_last_freq = -1;
+        if (s_last_freq != spark_freq) {
+            tft.fillRectangle(106, y, 150, y + 8, COLOR_BLACK);
+            tft.drawText(106, y, String(spark_freq), COLOR_YELLOW);
+            s_last_freq = spark_freq;
+        }
+        return;
     }
     y += 15;
 
     // Voltage
-    static int32_t s_last_voltage = -1;
-    if (s_last_voltage != spark_voltage) {
-        tft.fillRectangle(106, y, 150, y + 8, COLOR_BLACK);
-        tft.drawText(106, y, String(spark_voltage), COLOR_YELLOW);
-        s_last_voltage = spark_voltage;
+    if (s_call_counter == 3) {
+        static int32_t s_last_voltage = -1;
+        if (s_last_voltage != spark_voltage) {
+            tft.fillRectangle(106, y, 150, y + 8, COLOR_BLACK);
+            tft.drawText(106, y, String(spark_voltage), COLOR_YELLOW);
+            s_last_voltage = spark_voltage;
+        }
+        return;
     }
     y += 15;
 
     // Current
-    static int32_t s_last_current = -1;
-    if (s_last_current != spark_current) {
-        tft.fillRectangle(106, y, 150, y + 8, COLOR_BLACK);
-        tft.drawText(106, y, String(spark_current), COLOR_YELLOW);
-        s_last_current = spark_current;
+    if (s_call_counter == 4) {
+        static int32_t s_last_current = -1;
+        if (s_last_current != spark_current) {
+            tft.fillRectangle(106, y, 150, y + 8, COLOR_BLACK);
+            tft.drawText(106, y, String(spark_current), COLOR_YELLOW);
+            s_last_current = spark_current;
+        }
+        return;
     }
     y += 15;
 
@@ -169,56 +190,76 @@ void update_display() {
     y += 15;
 
     // Tension (bins)
-    static int32_t s_last_tension_bins = -1;
-    if (s_last_tension_bins != tension_bins) {
-        tft.fillRectangle(106, y, 150, y + 8, COLOR_BLACK);
-        tft.drawText(106, y, String(tension_bins), COLOR_YELLOW);
-        s_last_tension_bins = tension_bins;
+    if (s_call_counter == 5) {
+        static int32_t s_last_tension_bins = -1;
+        if (s_last_tension_bins != tension_bins) {
+            tft.fillRectangle(106, y, 150, y + 8, COLOR_BLACK);
+            tft.drawText(106, y, String(tension_bins), COLOR_YELLOW);
+            s_last_tension_bins = tension_bins;
+        }
+        return;
     }
     y += 15;
 
     // Tension (g)
-    static int32_t s_last_tension_g = -1;
-    if (s_last_tension_g != tension_g) {
-        tft.fillRectangle(106, y, 150, y + 8, COLOR_BLACK);
-        tft.drawText(106, y, String(tension_g), COLOR_YELLOW);
-        s_last_tension_g = tension_g;
+    if (s_call_counter == 6) {
+        static int32_t s_last_tension_g = -1;
+        if (s_last_tension_g != tension_g) {
+            tft.fillRectangle(106, y, 150, y + 8, COLOR_BLACK);
+            tft.drawText(106, y, String(tension_g), COLOR_YELLOW);
+            s_last_tension_g = tension_g;
+        }
+        return;
     }
     y += 15;
 
     // Feeder freq
-    static int32_t s_last_feeder_period_us = -1;
-    if (s_last_feeder_period_us != feeder_period_us) {
-        tft.fillRectangle(106, y, 150, y + 8, COLOR_BLACK);
-        tft.drawText(106, y, String(1000000 / feeder_period_us), COLOR_YELLOW);
-        s_last_feeder_period_us = feeder_period_us;
+    if (s_call_counter == 7) {
+        static int32_t s_last_feeder_period_us = -1;
+        if (s_last_feeder_period_us != feeder_period_us) {
+            tft.fillRectangle(106, y, 150, y + 8, COLOR_BLACK);
+            tft.drawText(106, y, String(1000000 / feeder_period_us), COLOR_YELLOW);
+            s_last_feeder_period_us = feeder_period_us;
+        }
+        return;
     }
     y += 15;
 
     // Brake freq
-    static int32_t s_last_brake_period_us = -1;
-    if (s_last_brake_period_us != brake_period_us) {
-        tft.fillRectangle(106, y, 150, y + 8, COLOR_BLACK);
-        tft.drawText(106, y, String(1000000 / brake_period_us), COLOR_YELLOW);
-        s_last_brake_period_us = brake_period_us;
+    if (s_call_counter == 8) {
+        static int32_t s_last_brake_period_us = -1;
+        if (s_last_brake_period_us != brake_period_us) {
+            tft.fillRectangle(106, y, 150, y + 8, COLOR_BLACK);
+            tft.drawText(106, y, String(1000000 / brake_period_us), COLOR_YELLOW);
+            s_last_brake_period_us = brake_period_us;
+        }
+        return;
     }
     y += 15;
 
     // T1
-    static int32_t s_last_t1 = -1;
-    if (s_last_t1 != spark_t1_us) {
-        tft.fillRectangle(15, 180, 75, 195, COLOR_BLACK);
-        tft.drawText(25, 185, String(spark_t1_us) + " us", COLOR_YELLOW);
-        s_last_t1 = spark_t1_us;
+    if (s_call_counter == 9) {
+        static int32_t s_last_t1 = -1;
+        if (s_last_t1 != spark_t1_us) {
+            tft.fillRectangle(15, 180, 75, 195, COLOR_BLACK);
+            tft.drawText(25, 185, String(spark_t1_us) + " us", COLOR_YELLOW);
+            s_last_t1 = spark_t1_us;
+        }
+        return;
     }
 
     // T0
-    static int32_t s_last_t0 = -1;
-    if (s_last_t0 != spark_t0_us) {
-        tft.fillRectangle(100, 180, 160, 195, COLOR_BLACK);
-        tft.drawText(105, 185, String(spark_t0_us) + " us", COLOR_YELLOW);
-        s_last_t0 = spark_t0_us;
+    if (s_call_counter == 10) {
+        static int32_t s_last_t0 = -1;
+        if (s_last_t0 != spark_t0_us) {
+            tft.fillRectangle(100, 180, 160, 195, COLOR_BLACK);
+            tft.drawText(105, 185, String(spark_t0_us) + " us", COLOR_YELLOW);
+            s_last_t0 = spark_t0_us;
+        }
+        return;
     }
+
+    s_call_counter = 0;
 }
 
 void update_mosfet_ctrl_pwm() {
@@ -251,6 +292,12 @@ void setup() {
     pmc_enable_periph_clk(ID_PWM);
     pmc_enable_periph_clk(ID_ADC);
     PWMC_ConfigureClocks(1000000UL, 0, VARIANT_MCK); // 1 tick = 1 us
+
+    // Setup debug
+    pinMode(DEBUG_PIN_1, OUTPUT);
+    pinMode(DEBUG_PIN_2, OUTPUT);
+    pinMode(DEBUG_PIN_3, OUTPUT);
+    pinMode(DEBUG_PIN_4, OUTPUT);
 
     // Setup ADC
     // adc_init(ADC, VARIANT_MCK, 21000000UL, ADC_STARTUP_NORM); // 21 MHz
@@ -359,6 +406,7 @@ void loop() {
     static uint32_t s_spark_data_acc = 0;
     static uint32_t s_spark_data_n = 0;
     if (spark_period_counter != s_prev_spark_period_counter) {
+        digitalWrite(DEBUG_PIN_2, !digitalRead(DEBUG_PIN_2)); 
         if (s_spark_data_n > 0) {
             spark_voltage = s_spark_data_acc / s_spark_data_n;
             s_spark_data_acc = 0;
@@ -380,6 +428,7 @@ void loop() {
         s_prev_spark_period_counter = spark_period_counter;
     }
 
+    digitalWrite(DEBUG_PIN_1, !digitalRead(DEBUG_PIN_1)); 
     s_spark_data_acc += analogRead(SPART_SHORT_CIRCUIT);
     // s_spark_data_acc += adc_get_channel_value(ADC, SPART_SHORT_CIRCUIT);
     ++s_spark_data_n;

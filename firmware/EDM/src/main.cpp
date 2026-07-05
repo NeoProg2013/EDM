@@ -30,8 +30,13 @@
 #define MOSFET_GATE_CTRL_PWM_CH   (7)
 #define MOSFET_GATE_GND           (5)
 
-#define SPART_SHORT_CIRCUIT       (A1)
+#define SPARK_SHORT_CIRCUIT       (14)
 // #define SPART_SHORT_CIRCUIT       (ADC_CHANNEL_6) // A1
+
+#define X_EN                      (29)
+#define X_DIR                     (27)
+#define X_STEP                    (9)
+#define X_PWM_CH                  (4)
 
 
 #define DEBUG_PIN_1                 (13)
@@ -46,18 +51,14 @@ TFT_22_ILI9225 tft(TFT_RST, TFT_RS, TFT_CS, 0, 255);
 HX711 head_tension;
 
 int32_t spark_freq    = 0;
-int32_t spark_t1_us   = 10;
-int32_t spark_t0_us   = 500;
-int32_t spark_current = 0;
-int32_t spark_voltage = 0;
+int32_t spark_t1_us   = 3;
+int32_t spark_t0_us   = 300;
+uint32_t g_spark_time_us = 0;
 bool spark_generator_state = false;
 bool is_short_circuit = false;
 
-uint32_t spark_period_counter = 0;
-
-
 int32_t feeder_period_us = 1000000UL / 100;
-int32_t brake_period_us = 1000000UL / 80;
+int32_t brake_period_us = 1000000UL / 70;
 
 #define TENSION_SCALE       (1700) // 1700 bins = 1g
 int32_t tension_bins = 0;
@@ -79,7 +80,7 @@ void keyboard_process() {
     s_last_start_stop_button_state = v;
 
     // Validate values
-    if (spark_t1_us < 5)   spark_t1_us = 5;
+    if (spark_t1_us < 1)   spark_t1_us = 1;
     if (spark_t0_us < 100) spark_t0_us = 100;
 
     // Calc spark parameters
@@ -104,8 +105,8 @@ void update_display() {
         tft.setFont(Terminal6x8, true);
         int y = 40;
         tft.drawText(5, y, "    Freq (Hz): ---", COLOR_WHITE); y += 15;
-        tft.drawText(5, y, "Voltage (bin): ---", COLOR_WHITE); y += 15;
-        tft.drawText(5, y, " Current (mA): ---", COLOR_WHITE); y += 15;
+        tft.drawText(5, y, "   Spark time: ---", COLOR_WHITE); y += 15;
+        tft.drawText(5, y, "", COLOR_WHITE); y += 15;
         tft.drawText(5, y, "", COLOR_WHITE); y += 15;
         tft.drawText(5, y, "Tension (bin): ---", COLOR_WHITE); y += 15;
         tft.drawText(5, y, "  Tension (g): ---", COLOR_WHITE); y += 15;
@@ -132,16 +133,11 @@ void update_display() {
         static int32_t s_last_state = -1;
         if (s_last_state != spark_generator_state) {
             tft.fillRectangle(5, 5, 176, 21, COLOR_BLACK);
-            if (is_short_circuit) {
-                tft.drawText(5, 5, "PROTECTION", COLOR_RED);
+            if (spark_generator_state) {
+                tft.drawText(5, 5, "ENABLED", COLOR_GREEN);
             } else {
-                if (spark_generator_state) {
-                    tft.drawText(5, 5, "ENABLED", COLOR_GREEN);
-                } else {
-                    tft.drawText(5, 5, "DISABLED", COLOR_RED);
-                }
+                tft.drawText(5, 5, "DISABLED", COLOR_RED);
             }
-            
             s_last_state = spark_generator_state;
         }
         return;
@@ -162,13 +158,13 @@ void update_display() {
     }
     y += 15;
 
-    // Voltage
+    // Spark time
     if (s_call_counter == 3) {
-        static int32_t s_last_voltage = -1;
-        if (s_last_voltage != spark_voltage) {
+        static uint32_t s_last_spark_time_us = -1;
+        if (s_last_spark_time_us != g_spark_time_us) {
             tft.fillRectangle(106, y, 150, y + 8, COLOR_BLACK);
-            tft.drawText(106, y, String(spark_voltage), COLOR_YELLOW);
-            s_last_voltage = spark_voltage;
+            tft.drawText(106, y, String(g_spark_time_us), COLOR_YELLOW);
+            s_last_spark_time_us = g_spark_time_us;
         }
         return;
     }
@@ -176,12 +172,12 @@ void update_display() {
 
     // Current
     if (s_call_counter == 4) {
-        static int32_t s_last_current = -1;
-        if (s_last_current != spark_current) {
-            tft.fillRectangle(106, y, 150, y + 8, COLOR_BLACK);
-            tft.drawText(106, y, String(spark_current), COLOR_YELLOW);
-            s_last_current = spark_current;
-        }
+        // static int32_t s_last_current = -1;
+        // if (s_last_current != spark_current) {
+        //     tft.fillRectangle(106, y, 150, y + 8, COLOR_BLACK);
+        //     tft.drawText(106, y, String(spark_current), COLOR_YELLOW);
+        //     s_last_current = spark_current;
+        // }
         return;
     }
     y += 15;
@@ -287,6 +283,18 @@ void update_mosfet_ctrl_pwm() {
     }
 }
 
+
+void spark_feedback_irq(void) {
+    bool state = (g_APinDescription[SPARK_SHORT_CIRCUIT].pPort->PIO_PDSR & g_APinDescription[SPARK_SHORT_CIRCUIT].ulPin);
+
+    static uint32_t s_start = 0;
+    if (state == HIGH) {
+        g_spark_time_us = micros() - s_start;
+    } else {
+        s_start = micros();
+    }
+}
+
 void setup() {
     // Enable PWM periph
     pmc_enable_periph_clk(ID_PWM);
@@ -298,14 +306,6 @@ void setup() {
     pinMode(DEBUG_PIN_2, OUTPUT);
     pinMode(DEBUG_PIN_3, OUTPUT);
     pinMode(DEBUG_PIN_4, OUTPUT);
-
-    // Setup ADC
-    // adc_init(ADC, VARIANT_MCK, 21000000UL, ADC_STARTUP_NORM); // 21 MHz
-    // adc_set_resolution(ADC, ADC_12_BITS); // 12 bit resolution
-    // adc_configure_timing(ADC, 0, ADC_SETTLING_TIME_3, 1);
-    // ADC->ADC_MR |= ADC_MR_FREERUN_ON;  // Enable Free Running mode
-    // adc_enable_channel(ADC, SPART_SHORT_CIRCUIT); // Enable ADC channel
-    // adc_start(ADC); // Start ADC
 
     Serial.begin(115200);
 
@@ -321,9 +321,6 @@ void setup() {
     pinMode(T0_INC_BUTTON, INPUT_PULLUP); // T0 button +
     pinMode(T0_DEC_BUTTON, INPUT_PULLUP); // T0 button -
     pinMode(START_STOP_BUTTON, INPUT_PULLUP); // Start / stop button
-
-    // Feedback
-    pinMode(SPART_SHORT_CIRCUIT, INPUT);
 
     //
     // Setup head tension sensor
@@ -343,7 +340,7 @@ void setup() {
     PWMC_SetDutyCycle(PWM, HEAD_FEEDER_PWM_CH, feeder_period_us / 2);
 
     pinMode(HEAD_FEEDER_EN, OUTPUT);
-    pinMode(HEAD_FEEDER_EN, HIGH);
+    digitalWrite(HEAD_FEEDER_EN, HIGH);
     pinMode(HEAD_FEEDER_STEP, OUTPUT);
     digitalWrite(HEAD_FEEDER_STEP, LOW);
 
@@ -354,7 +351,7 @@ void setup() {
     PWMC_SetDutyCycle(PWM, HEAD_BRAKE_PWM_CH, brake_period_us / 2);
 
     pinMode(HEAD_BRAKE_EN, OUTPUT);
-    pinMode(HEAD_BRAKE_EN, HIGH);
+    digitalWrite(HEAD_BRAKE_EN, HIGH);
     pinMode(HEAD_BRAKE_STEP, OUTPUT);
     digitalWrite(HEAD_BRAKE_STEP, LOW);
     
@@ -371,20 +368,37 @@ void setup() {
     pinMode(MOSFET_GATE_GND, OUTPUT);
     digitalWrite(MOSFET_GATE_GND, LOW);
 
-    // Enable IRQ for gate PWM
-    PWM->PWM_IER1 = (1 << MOSFET_GATE_CTRL_PWM_CH);
-    NVIC_DisableIRQ(PWM_IRQn);
-    NVIC_ClearPendingIRQ(PWM_IRQn);
-    NVIC_SetPriority(PWM_IRQn, 0);
-    NVIC_EnableIRQ(PWM_IRQn);
+    // // Enable IRQ for gate PWM
+    // PWM->PWM_IER1 = (1 << MOSFET_GATE_CTRL_PWM_CH);
+    // NVIC_DisableIRQ(PWM_IRQn);
+    // NVIC_ClearPendingIRQ(PWM_IRQn);
+    // NVIC_SetPriority(PWM_IRQn, 0);
+    // NVIC_EnableIRQ(PWM_IRQn);
+
+    //
+    // Setup X axis
+    PWMC_ConfigureChannel(PWM, X_PWM_CH, PWM_CMR_CPRE_CLKA, 0, 0);
+    PWMC_SetPeriod(PWM, X_PWM_CH, 10000);
+    PWMC_SetDutyCycle(PWM, X_PWM_CH, 10000 / 2);
+
+    pinMode(X_EN, OUTPUT);
+    digitalWrite(X_EN, HIGH);
+    pinMode(X_STEP, OUTPUT);
+    digitalWrite(X_STEP, LOW);
+    pinMode(X_DIR, OUTPUT);
+    digitalWrite(X_DIR, LOW);
+
+    // Feedback
+    pinMode(SPARK_SHORT_CIRCUIT, INPUT_PULLUP);
+    attachInterrupt(SPARK_SHORT_CIRCUIT, spark_feedback_irq, CHANGE);
 }
 
-void PWM_Handler(void)  {
-    uint32_t status = PWM->PWM_ISR1; 
-    if (status & (1 << MOSFET_GATE_CTRL_PWM_CH)) {
-        ++spark_period_counter;
-    }
-}
+// void PWM_Handler(void) {
+//     uint32_t status = PWM->PWM_ISR1; 
+//     if (status & (1 << MOSFET_GATE_CTRL_PWM_CH)) {
+//         ++spark_period_counter;
+//     }
+// }
 
 void loop() {
     //
@@ -402,64 +416,40 @@ void loop() {
 
     //
     // Short circuit control
-    static uint32_t s_prev_spark_period_counter = 0;
-    static uint32_t s_spark_data_acc = 0;
-    static uint32_t s_spark_data_n = 0;
-    if (spark_period_counter != s_prev_spark_period_counter) {
-        digitalWrite(DEBUG_PIN_2, !digitalRead(DEBUG_PIN_2)); 
-        if (s_spark_data_n > 0) {
-            spark_voltage = s_spark_data_acc / s_spark_data_n;
-            s_spark_data_acc = 0;
-            s_spark_data_n = 0;
-            
-            static uint32_t s_no_spark_counter = 0;
-            if (spark_voltage == 0 && spark_generator_state) {
-                ++s_no_spark_counter;
-                if (s_no_spark_counter > 5) {
-                    spark_generator_state = false;
-                    is_short_circuit = true;
-                    s_no_spark_counter = 0;
-                }
-            } else {
-                s_no_spark_counter = 0;
-            }
+    static uint32_t s_no_spark_counter = 0;
+    if (g_spark_time_us < 5) {
+        ++s_no_spark_counter;
+        if (s_no_spark_counter > 100) {
+            digitalWrite(X_DIR, LOW);
         }
-
-        s_prev_spark_period_counter = spark_period_counter;
+    } else {
+        s_no_spark_counter = 0;
+        digitalWrite(X_DIR, HIGH);
     }
-
-    digitalWrite(DEBUG_PIN_1, !digitalRead(DEBUG_PIN_1)); 
-    s_spark_data_acc += analogRead(SPART_SHORT_CIRCUIT);
-    // s_spark_data_acc += adc_get_channel_value(ADC, SPART_SHORT_CIRCUIT);
-    ++s_spark_data_n;
 
     // 
     // Tension control
-    static uint32_t s_tension_acc = 0;
-    static uint32_t s_tension_acc_n = 0;
+    static int32_t s_tension_acc = 0;
+    static int32_t s_tension_acc_n = 0;
     if (head_tension.is_ready()) {
-        s_tension_acc += abs(head_tension.read());
+        s_tension_acc += head_tension.read();
         s_tension_acc_n++;
     }
 
-    static uint32_t s_last_tension_control_ms = 0;
     if (spark_generator_state) {
-        if (millis() - s_last_tension_control_ms > 100) {
-            if (s_tension_acc_n > 0) {
-                int32_t d = 1001000 - s_tension_acc / s_tension_acc_n;
-                if (d < -100) {
-                    brake_period_us = constrain(brake_period_us - 10, 2000, 15000);
-                } else if (d > 100) {
-                    brake_period_us = constrain(brake_period_us + 10, 2000, 15000);
-                }
-                PWMC_SetPeriod(PWM, HEAD_BRAKE_PWM_CH, brake_period_us);
-                PWMC_SetDutyCycle(PWM, HEAD_BRAKE_PWM_CH, brake_period_us / 2);
-
-                tension_bins = s_tension_acc / s_tension_acc_n;
-                tension_g = tension_bins * TENSION_SCALE;
+        if (s_tension_acc_n >= 10) {
+            int32_t d = -1001000 - (s_tension_acc / s_tension_acc_n);
+            if (d > 100) {
+                brake_period_us = constrain(brake_period_us - 10, 2000, 15000);
+            } else if (d < -100) {
+                brake_period_us = constrain(brake_period_us + 10, 2000, 15000);
             }
+            PWMC_SetPeriod(PWM, HEAD_BRAKE_PWM_CH, brake_period_us);
+            PWMC_SetDutyCycle(PWM, HEAD_BRAKE_PWM_CH, brake_period_us / 2);
 
-            s_last_tension_control_ms = millis();
+            tension_bins = s_tension_acc / s_tension_acc_n;
+            tension_g = abs(tension_bins) / TENSION_SCALE;
+
             s_tension_acc = 0;
             s_tension_acc_n = 0;
         }
@@ -470,7 +460,7 @@ void loop() {
 
     //
     // Shutdown
-    static bool is_periph_enabled = false;
+    static bool is_periph_enabled = true;
     if (!spark_generator_state) {
         if (is_periph_enabled) {
             PWMC_DisableChannel(PWM, MOSFET_GATE_CTRL_PWM_CH);
@@ -485,8 +475,13 @@ void loop() {
             pinMode(HEAD_FEEDER_STEP, OUTPUT);
             digitalWrite(HEAD_FEEDER_STEP, LOW);
 
+            PWMC_DisableChannel(PWM, X_PWM_CH);
+            pinMode(X_STEP, OUTPUT);
+            digitalWrite(X_STEP, LOW);
+
             digitalWrite(HEAD_FEEDER_EN, HIGH);
             digitalWrite(HEAD_BRAKE_EN, HIGH);
+            digitalWrite(X_EN, HIGH);
 
             Serial.println("periph disabled");
             is_periph_enabled = false;
@@ -512,6 +507,13 @@ void loop() {
                           g_APinDescription[MOSFET_GATE_CTRL].ulPin, 
                           g_APinDescription[MOSFET_GATE_CTRL].ulPinConfiguration);
             PWMC_EnableChannel(PWM, MOSFET_GATE_CTRL_PWM_CH);
+
+            PIO_Configure(g_APinDescription[X_STEP].pPort, 
+                          g_APinDescription[X_STEP].ulPinType, 
+                          g_APinDescription[X_STEP].ulPin, 
+                          g_APinDescription[X_STEP].ulPinConfiguration);
+            PWMC_EnableChannel(PWM, X_PWM_CH);
+            digitalWrite(X_EN, LOW);
 
             Serial.println("periph enabled");
             is_periph_enabled = true;

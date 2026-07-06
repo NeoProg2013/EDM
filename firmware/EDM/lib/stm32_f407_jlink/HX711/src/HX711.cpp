@@ -75,7 +75,7 @@ HX711::HX711() {
 HX711::~HX711() {
 }
 
-void HX711::begin(byte dout, byte pd_sck, byte gain) {
+void HX711::begin(int32_t dout, int32_t pd_sck, byte gain) {
 	PD_SCK = pd_sck;
 	DOUT = dout;
 

@@ -19,8 +19,8 @@
 class HX711
 {
 	private:
-		byte PD_SCK;	// Power Down and Serial Clock Input Pin
-		byte DOUT;		// Serial Data Output Pin
+		int32_t PD_SCK;	// Power Down and Serial Clock Input Pin
+		int32_t DOUT;		// Serial Data Output Pin
 		byte GAIN;		// amplification factor
 		long OFFSET = 0;	// used for tare weight
 		float SCALE = 1;	// used to return weight in grams, kg, ounces, whatever
@@ -36,7 +36,7 @@ class HX711
 		// - With a gain factor of 64 or 128, channel A is selected
 		// - With a gain factor of 32, channel B is selected
 		// The library default is "128" (Channel A).
-		void begin(byte dout, byte pd_sck, byte gain = 128);
+		void begin(int32_t dout, int32_t pd_sck, byte gain = 128);
 
 		// Check if HX711 is ready
 		// from the datasheet: When output data is not ready for retrieval, digital output pin DOUT is high. Serial clock

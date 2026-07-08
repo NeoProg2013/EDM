@@ -11,7 +11,7 @@
 TFT_22_ILI9225 tft(TFT_RST, TFT_RS, TFT_CS, TFT_LED, 255);
 
 extern uint32_t g_spark_time_us;
-
+extern TIM_HandleTypeDef g_htim8;
 
 void display_init() {
     SPI.setMOSI(PA7);
@@ -111,14 +111,17 @@ void display_update() {
     }
     y += 15;
 
-    // Current
     if (s_call_counter == 4) {
-        // static int32_t s_last_current = -1;
-        // if (s_last_current != spark_current) {
-        //     tft.fillRectangle(106, y, 150, y + 8, COLOR_BLACK);
-        //     tft.drawText(106, y, String(spark_current), COLOR_YELLOW);
-        //     s_last_current = spark_current;
-        // }
+        tft.fillRectangle(5, y, 150, y + 8, COLOR_BLACK);
+        uint32_t current_cnt = __HAL_TIM_GET_COUNTER(&g_htim8);
+        int32_t period_ticks = HAL_TIM_ReadCapturedValue(&g_htim8, TIM_CHANNEL_2);
+        int32_t high_ticks = HAL_TIM_ReadCapturedValue(&g_htim8, TIM_CHANNEL_1);
+        if (current_cnt > 10000) {
+            period_ticks = 0;
+            high_ticks = 0;
+        }
+        tft.drawText(5, y, String(period_ticks), COLOR_YELLOW);
+        tft.drawText(106, y, String(high_ticks), COLOR_YELLOW);
         return;
     }
     y += 15;

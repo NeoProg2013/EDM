@@ -6,9 +6,9 @@
 #define HEAD_FEEDER_STEP_PIN        (GPIO_PIN_12)
 #define HEAD_FEEDER_STEP_PORT       (GPIOD)
 
-#define HEAD_BRAKE_EN_PIN           (GPIO_PIN_7)
-#define HEAD_BRAKE_EN_PORT          (GPIOC)
-#define HEAD_BRAKE_STEP_PIN         (GPIO_PIN_8)
+#define HEAD_BRAKE_EN_PIN           (GPIO_PIN_8)
+#define HEAD_BRAKE_EN_PORT          (GPIOA)
+#define HEAD_BRAKE_STEP_PIN         (GPIO_PIN_9)
 #define HEAD_BRAKE_STEP_PORT        (GPIOC)
 
 #define HEAD_HX711_VCC_PIN          (GPIO_PIN_11)
@@ -78,7 +78,7 @@ void tension_init() {
     //
     // BRAKE
 
-    // Setup head brake: PC7 EN
+    // Setup head brake: PA8 EN
     GPIO_InitTypeDef brake_en_gpio = {0};
     brake_en_gpio.Pin       = HEAD_BRAKE_EN_PIN;
     brake_en_gpio.Mode      = GPIO_MODE_OUTPUT_PP;
@@ -87,12 +87,12 @@ void tension_init() {
     HAL_GPIO_Init(HEAD_BRAKE_EN_PORT, &brake_en_gpio);
     HAL_GPIO_WritePin(HEAD_BRAKE_EN_PORT, HEAD_BRAKE_EN_PIN, GPIO_PIN_SET);
 
-    // Setup head brake: PC8 STEP PWM
+    // Setup head brake: PC9 STEP PWM
     GPIO_InitTypeDef brake_step_gpio = {0};
     brake_step_gpio.Pin       = HEAD_BRAKE_STEP_PIN;
     brake_step_gpio.Mode      = GPIO_MODE_AF_PP;
     brake_step_gpio.Pull      = GPIO_NOPULL;
-    brake_step_gpio.Speed     = GPIO_SPEED_FREQ_VERY_HIGH;
+    brake_step_gpio.Speed     = GPIO_SPEED_FREQ_HIGH;
     brake_step_gpio.Alternate = GPIO_AF2_TIM3;
     HAL_GPIO_Init(HEAD_BRAKE_STEP_PORT, &brake_step_gpio);
 
@@ -111,7 +111,7 @@ void tension_init() {
     brake_pwm.Pulse      = 0;  // CCR
     brake_pwm.OCPolarity = TIM_OCPOLARITY_HIGH;
     brake_pwm.OCFastMode = TIM_OCFAST_DISABLE;
-    HAL_TIM_PWM_ConfigChannel(&g_head_brake_htim, &brake_pwm, TIM_CHANNEL_3);
+    HAL_TIM_PWM_ConfigChannel(&g_head_brake_htim, &brake_pwm, TIM_CHANNEL_4);
 
     //
     // Setup head tension sensor
@@ -165,7 +165,7 @@ void tension_start() {
     HAL_TIM_PWM_Start(&g_head_feeder_htim, TIM_CHANNEL_1);
 
     HAL_GPIO_WritePin(HEAD_BRAKE_EN_PORT, HEAD_BRAKE_EN_PIN, GPIO_PIN_RESET); // Enable brake driver
-    HAL_TIM_PWM_Start(&g_head_brake_htim, TIM_CHANNEL_3);
+    HAL_TIM_PWM_Start(&g_head_brake_htim, TIM_CHANNEL_4);
 
     g_is_enabled = true;
 }
@@ -179,7 +179,7 @@ void tension_stop() {
     HAL_TIM_PWM_Stop(&g_head_feeder_htim, TIM_CHANNEL_1);
 
     HAL_GPIO_WritePin(HEAD_BRAKE_EN_PORT, HEAD_BRAKE_EN_PIN, GPIO_PIN_SET); // Disable brake driver
-    HAL_TIM_PWM_Stop(&g_head_brake_htim, TIM_CHANNEL_3);
+    HAL_TIM_PWM_Stop(&g_head_brake_htim, TIM_CHANNEL_4);
 
     g_is_enabled = false;
 }
@@ -231,5 +231,5 @@ static void update_head_speed() {
 
     // Update brake freq
     __HAL_TIM_SET_AUTORELOAD(&g_head_brake_htim, g_brake_period_us);
-    __HAL_TIM_SET_COMPARE(&g_head_brake_htim, TIM_CHANNEL_3, g_brake_period_us / 2);
+    __HAL_TIM_SET_COMPARE(&g_head_brake_htim, TIM_CHANNEL_4, g_brake_period_us / 2);
 }

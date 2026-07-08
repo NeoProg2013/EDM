@@ -13,18 +13,6 @@
 #define KBRD_START_STOP_BUTTON      (PE6)
 
 
-
-
-
-#define SPARK_SHORT_CIRCUIT       (14)
-// #define SPART_SHORT_CIRCUIT       (ADC_CHANNEL_6) // A1
-
-#define X_EN                      (29)
-#define X_DIR                     (27)
-#define X_STEP                    (9)
-#define X_PWM_CH                  (4)
-
-
 // #define DEBUG_PIN_1                 (PD10)
 // #define DEBUG_PIN_2                 (PD9)
 // #define DEBUG_PIN_3                 (PD8)
@@ -71,14 +59,64 @@ void keyboard_process() {
 //     }
 // }
 
-static TIM_HandleTypeDef g_x_htim = {0};
+TIM_HandleTypeDef g_x_htim = {0};
+TIM_HandleTypeDef g_htim8 = {0};
 
-#define X_STEP_PIN        (GPIO_PIN_8)
-#define X_STEP_PORT       (GPIOA)
-#define X_DIR_PIN         (GPIO_PIN_9)
-#define X_DIR_PORT        (GPIOA)
+
 #define X_EN_PIN          (GPIO_PIN_10)
 #define X_EN_PORT         (GPIOA)
+#define X_STEP_PIN        (GPIO_PIN_11)
+#define X_STEP_PORT       (GPIOA)
+#define X_DIR_PIN         (GPIO_PIN_12)
+#define X_DIR_PORT        (GPIOA)
+
+
+#define FEEDBACK_PIN          (GPIO_PIN_6)
+#define FEEDBACK_PORT         (GPIOC)
+
+void init_feedback() {
+    GPIO_InitTypeDef x_step_gpio = {0};
+    x_step_gpio.Pin       = FEEDBACK_PIN;
+    x_step_gpio.Mode      = GPIO_MODE_AF_PP;
+    x_step_gpio.Pull      = GPIO_NOPULL;
+    x_step_gpio.Speed     = GPIO_SPEED_FREQ_VERY_HIGH;
+    x_step_gpio.Alternate = GPIO_AF3_TIM8;
+    HAL_GPIO_Init(FEEDBACK_PORT, &x_step_gpio);
+
+    // Setup TIM8
+    g_htim8.Instance               = TIM8;
+    g_htim8.Init.Prescaler         = 167; // Prescaler = 168 - 1 = 83: 1 tick = 1 us
+    g_htim8.Init.CounterMode       = TIM_COUNTERMODE_UP;
+    g_htim8.Init.Period            = 0xFFFF;
+    g_htim8.Init.ClockDivision     = TIM_CLOCKDIVISION_DIV1;
+    g_htim8.Init.RepetitionCounter = 0;
+    g_htim8.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+    HAL_TIM_IC_Init(&g_htim8);
+
+    // Setup slave mode
+    TIM_SlaveConfigTypeDef slave = {0};
+    slave.SlaveMode        = TIM_SLAVEMODE_RESET;         // Reset CNT to 0 by trigger
+    slave.InputTrigger     = TIM_TS_TI1FP1;               // Connect trigger to CH1 (TI1)
+    slave.TriggerPolarity  = TIM_TRIGGERPOLARITY_FALLING; // Trigger polarity
+    slave.TriggerFilter    = 0;
+    HAL_TIM_SlaveConfigSynchro(&g_htim8, &slave);
+
+    // Setup input CH2 (RISING)
+    TIM_IC_InitTypeDef in = {0};
+    in.ICPolarity  = TIM_ICPOLARITY_FALLING;
+    in.ICSelection = TIM_ICSELECTION_DIRECTTI;
+    in.ICPrescaler = TIM_ICPSC_DIV1;
+    in.ICFilter    = 4; 
+    HAL_TIM_IC_ConfigChannel(&g_htim8, &in, TIM_CHANNEL_1);
+
+    // Setup input CH1 (FALLING)
+    in.ICPolarity  = TIM_ICPOLARITY_RISING;
+    in.ICSelection = TIM_ICSELECTION_INDIRECTTI; // Indirect link CH1 to CH2 pin
+    HAL_TIM_IC_ConfigChannel(&g_htim8, &in, TIM_CHANNEL_2);
+
+    HAL_TIM_IC_Start(&g_htim8, TIM_CHANNEL_1);
+    HAL_TIM_IC_Start(&g_htim8, TIM_CHANNEL_2);
+}
 
 void setup() {
     __HAL_RCC_SYSCFG_CLK_ENABLE();
@@ -86,6 +124,7 @@ void setup() {
     __HAL_RCC_TIM2_CLK_ENABLE();
     __HAL_RCC_TIM3_CLK_ENABLE();
     __HAL_RCC_TIM4_CLK_ENABLE();
+    __HAL_RCC_TIM8_CLK_ENABLE();
     __HAL_RCC_GPIOA_CLK_ENABLE();
     __HAL_RCC_GPIOB_CLK_ENABLE();
     __HAL_RCC_GPIOC_CLK_ENABLE();
@@ -114,7 +153,7 @@ void setup() {
     //
     // Setup X axis
 
-    // STEP: PA8 PWM
+    // STEP: PA11 PWM
     GPIO_InitTypeDef x_step_gpio = {0};
     x_step_gpio.Pin       = X_STEP_PIN;
     x_step_gpio.Mode      = GPIO_MODE_AF_PP;
@@ -136,7 +175,7 @@ void setup() {
     TIM_OC_InitTypeDef x_pwm = {0};
     x_pwm.OCMode = TIM_OCMODE_PWM1; // HIGH while counter < CCR
     x_pwm.Pulse  = 5000;            // CCR
-    HAL_TIM_PWM_ConfigChannel(&g_x_htim, &x_pwm, TIM_CHANNEL_1);
+    HAL_TIM_PWM_ConfigChannel(&g_x_htim, &x_pwm, TIM_CHANNEL_4);
 
     __HAL_TIM_MOE_ENABLE(&g_x_htim);
 
@@ -148,7 +187,7 @@ void setup() {
     HAL_GPIO_Init(X_EN_PORT, &x_en_gpio);
     HAL_GPIO_WritePin(X_EN_PORT, X_EN_PIN, GPIO_PIN_SET);
 
-    // DIR: PA9
+    // DIR: PA12
     GPIO_InitTypeDef x_dir_gpio = {0};
     x_dir_gpio.Pin   = X_DIR_PIN;
     x_dir_gpio.Mode  = GPIO_MODE_OUTPUT_PP;
@@ -157,20 +196,25 @@ void setup() {
     HAL_GPIO_WritePin(X_DIR_PORT, X_DIR_PIN, GPIO_PIN_SET);
 
 
+    init_feedback();
+
+
     // // Feedback
     // pinMode(SPARK_SHORT_CIRCUIT, INPUT_PULLUP);
     // attachInterrupt(SPARK_SHORT_CIRCUIT, spark_feedback_irq, CHANGE);
 }
 
 void start_axis_x() {
-    HAL_TIM_PWM_Start(&g_x_htim, TIM_CHANNEL_1);
+    HAL_TIM_PWM_Start(&g_x_htim, TIM_CHANNEL_4);
     HAL_GPIO_WritePin(X_EN_PORT, X_EN_PIN, GPIO_PIN_RESET);
 }
 
 void stop_axis_x() {
-    HAL_TIM_PWM_Stop(&g_x_htim, TIM_CHANNEL_1);
+    HAL_TIM_PWM_Stop(&g_x_htim, TIM_CHANNEL_4);
     HAL_GPIO_WritePin(X_EN_PORT, X_EN_PIN, GPIO_PIN_SET);
 }
+
+
 
 // void PWM_Handler(void) {
 //     uint32_t status = PWM->PWM_ISR1; 
@@ -194,18 +238,23 @@ void loop() {
         s_last_update_params_time_ms = millis();
     }
 
+
     //
     // Short circuit control
-    // static uint32_t s_no_spark_counter = 0;
-    // if (spark_is_enabled() && g_spark_time_us < 5) {
-    //     ++s_no_spark_counter;
-    //     if (s_no_spark_counter > 100) {
-    //         digitalWrite(X_DIR, LOW);
-    //     }
-    // } else {
-    //     s_no_spark_counter = 0;
-    //     digitalWrite(X_DIR, HIGH);
-    // }
+    static uint32_t s_reverse_dir_start_time_us = 0;
+    if (spark_is_enabled()) {
+        uint32_t current_cnt = __HAL_TIM_GET_COUNTER(&g_htim8);
+        int32_t period_us = HAL_TIM_ReadCapturedValue(&g_htim8, TIM_CHANNEL_2);
+        int32_t high_us   = HAL_TIM_ReadCapturedValue(&g_htim8, TIM_CHANNEL_1);
+        if (current_cnt > 10000) {
+            HAL_GPIO_WritePin(X_DIR_PORT, X_DIR_PIN, GPIO_PIN_RESET);
+            s_reverse_dir_start_time_us = micros();
+        } else {
+            if (micros() - s_reverse_dir_start_time_us > 100 * 1000) {
+                HAL_GPIO_WritePin(X_DIR_PORT, X_DIR_PIN, GPIO_PIN_SET);
+            }
+        }
+    }
     
     // 
     // Tension control

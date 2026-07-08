@@ -46,17 +46,15 @@ void spark_pwm_init() {
     pwm.OCPolarity = TIM_OCPOLARITY_HIGH;
     pwm.OCFastMode = TIM_OCFAST_DISABLE;
     HAL_TIM_PWM_ConfigChannel(&g_spark_htim, &pwm, TIM_CHANNEL_2);
-
-    HAL_TIM_PWM_Start(&g_spark_htim, TIM_CHANNEL_2);
 }
 
 void spark_pwm_start() {
     if (g_is_enabled) {
         return;
     }
-
-    __HAL_TIM_SET_AUTORELOAD(&g_spark_htim, g_spark_t1_us + g_spark_t0_us);
-    __HAL_TIM_SET_COMPARE(&g_spark_htim, TIM_CHANNEL_1, g_spark_t1_us);
+    spark_pwm_update(); 
+    
+    HAL_TIM_PWM_Start(&g_spark_htim, TIM_CHANNEL_2);
     g_is_enabled = true;
 }
 
@@ -65,15 +63,14 @@ void spark_pwm_stop() {
         return;
     }
 
-    __HAL_TIM_SET_AUTORELOAD(&g_spark_htim, g_spark_t1_us + g_spark_t0_us);
-    __HAL_TIM_SET_COMPARE(&g_spark_htim, TIM_CHANNEL_1, 0);
+    HAL_TIM_PWM_Stop(&g_spark_htim, TIM_CHANNEL_2);
     g_is_enabled = false;
 }
 
 void spark_pwm_update() {
     g_spark_freq = 1000000 / (g_spark_t1_us + g_spark_t0_us);
     __HAL_TIM_SET_AUTORELOAD(&g_spark_htim, g_spark_t1_us + g_spark_t0_us);
-    __HAL_TIM_SET_COMPARE(&g_spark_htim, TIM_CHANNEL_1, g_spark_t1_us);
+    __HAL_TIM_SET_COMPARE(&g_spark_htim, TIM_CHANNEL_2, g_spark_t1_us);
 }
 
 void spark_pwm_process() {

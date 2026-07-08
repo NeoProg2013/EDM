@@ -40,14 +40,14 @@ void tension_init() {
     //
     // FEEDER
 
-    // Setup head feeder: PD11 EN, low state
+    // Setup head feeder: PD11 EN
     GPIO_InitTypeDef feeder_en_gpio = {0};
     feeder_en_gpio.Pin       = HEAD_FEEDER_EN_PIN;
     feeder_en_gpio.Mode      = GPIO_MODE_OUTPUT_PP;
     feeder_en_gpio.Pull      = GPIO_NOPULL;
     feeder_en_gpio.Speed     = GPIO_SPEED_FREQ_LOW;
     HAL_GPIO_Init(HEAD_FEEDER_EN_PORT, &feeder_en_gpio);
-    HAL_GPIO_WritePin(HEAD_FEEDER_EN_PORT, HEAD_FEEDER_EN_PIN, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(HEAD_FEEDER_EN_PORT, HEAD_FEEDER_EN_PIN, GPIO_PIN_SET);
 
     // Setup head feeder: PD12 STEP PWM
     GPIO_InitTypeDef feeder_step_gpio = {0};
@@ -75,20 +75,17 @@ void tension_init() {
     feeder_pwm.OCFastMode = TIM_OCFAST_DISABLE;
     HAL_TIM_PWM_ConfigChannel(&g_head_feeder_htim, &feeder_pwm, TIM_CHANNEL_1);
 
-    // Start PWM in LOW state
-    HAL_TIM_PWM_Start(&g_head_feeder_htim, TIM_CHANNEL_1);
-
     //
     // BRAKE
 
-    // Setup head brake: PC7 EN, low state
+    // Setup head brake: PC7 EN
     GPIO_InitTypeDef brake_en_gpio = {0};
     brake_en_gpio.Pin       = HEAD_BRAKE_EN_PIN;
     brake_en_gpio.Mode      = GPIO_MODE_OUTPUT_PP;
     brake_en_gpio.Pull      = GPIO_NOPULL;
     brake_en_gpio.Speed     = GPIO_SPEED_FREQ_LOW;
     HAL_GPIO_Init(HEAD_BRAKE_EN_PORT, &brake_en_gpio);
-    HAL_GPIO_WritePin(HEAD_BRAKE_EN_PORT, HEAD_BRAKE_EN_PIN, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(HEAD_BRAKE_EN_PORT, HEAD_BRAKE_EN_PIN, GPIO_PIN_SET);
 
     // Setup head brake: PC8 STEP PWM
     GPIO_InitTypeDef brake_step_gpio = {0};
@@ -115,9 +112,6 @@ void tension_init() {
     brake_pwm.OCPolarity = TIM_OCPOLARITY_HIGH;
     brake_pwm.OCFastMode = TIM_OCFAST_DISABLE;
     HAL_TIM_PWM_ConfigChannel(&g_head_brake_htim, &brake_pwm, TIM_CHANNEL_3);
-
-    // Start brake PWM
-    HAL_TIM_PWM_Start(&g_head_brake_htim, TIM_CHANNEL_3); 
 
     //
     // Setup head tension sensor
@@ -165,13 +159,13 @@ void tension_start() {
         return;
     }
 
-    HAL_GPIO_WritePin(HEAD_FEEDER_EN_PORT, HEAD_FEEDER_EN_PIN, GPIO_PIN_SET); // Enable feeder driver
-    __HAL_TIM_SET_AUTORELOAD(&g_head_feeder_htim, g_feeder_period_us);
-    __HAL_TIM_SET_COMPARE(&g_head_feeder_htim, TIM_CHANNEL_1, g_feeder_period_us / 2);
+    update_head_speed();
 
-    HAL_GPIO_WritePin(HEAD_BRAKE_EN_PORT, HEAD_BRAKE_EN_PIN, GPIO_PIN_SET); // Enable brake driver
-    __HAL_TIM_SET_AUTORELOAD(&g_head_brake_htim, g_brake_period_us);
-    __HAL_TIM_SET_COMPARE(&g_head_brake_htim, TIM_CHANNEL_3, g_brake_period_us / 2);
+    HAL_GPIO_WritePin(HEAD_FEEDER_EN_PORT, HEAD_FEEDER_EN_PIN, GPIO_PIN_RESET); // Enable feeder driver
+    HAL_TIM_PWM_Start(&g_head_feeder_htim, TIM_CHANNEL_1);
+
+    HAL_GPIO_WritePin(HEAD_BRAKE_EN_PORT, HEAD_BRAKE_EN_PIN, GPIO_PIN_RESET); // Enable brake driver
+    HAL_TIM_PWM_Start(&g_head_brake_htim, TIM_CHANNEL_3);
 
     g_is_enabled = true;
 }
@@ -181,11 +175,11 @@ void tension_stop() {
         return;
     }
 
-    HAL_GPIO_WritePin(HEAD_FEEDER_EN_PORT, HEAD_FEEDER_EN_PIN, GPIO_PIN_RESET); // Disable feeder driver
-    __HAL_TIM_SET_COMPARE(&g_head_feeder_htim, TIM_CHANNEL_1, 0); // Set PWM to low state
+    HAL_GPIO_WritePin(HEAD_FEEDER_EN_PORT, HEAD_FEEDER_EN_PIN, GPIO_PIN_SET); // Disable feeder driver
+    HAL_TIM_PWM_Stop(&g_head_feeder_htim, TIM_CHANNEL_1);
 
-    HAL_GPIO_WritePin(HEAD_BRAKE_EN_PORT, HEAD_BRAKE_EN_PIN, GPIO_PIN_RESET); // Disable brake driver
-    __HAL_TIM_SET_COMPARE(&g_head_brake_htim, TIM_CHANNEL_3, 0); // Set PWM to low state
+    HAL_GPIO_WritePin(HEAD_BRAKE_EN_PORT, HEAD_BRAKE_EN_PIN, GPIO_PIN_SET); // Disable brake driver
+    HAL_TIM_PWM_Stop(&g_head_brake_htim, TIM_CHANNEL_3);
 
     g_is_enabled = false;
 }
@@ -199,8 +193,8 @@ void tension_process() {
         s_tension_acc_n++;
     }
 
-    if (g_is_enabled) {
-        if (s_tension_acc_n >= 10) {
+    if (s_tension_acc_n >= 10) {
+        if (g_is_enabled) {
             int32_t d = -1001000 - (s_tension_acc / s_tension_acc_n);
             if (d > 100) {
                 g_brake_period_us = constrain(g_brake_period_us - 10, 2000, 15000);
@@ -208,13 +202,10 @@ void tension_process() {
                 g_brake_period_us = constrain(g_brake_period_us + 10, 2000, 15000);
             }
             update_head_speed();
-
-            g_tension_bins = s_tension_acc / s_tension_acc_n;
-
-            s_tension_acc = 0;
-            s_tension_acc_n = 0;
         }
-    } else {
+        
+        g_tension_bins = s_tension_acc / s_tension_acc_n;
+
         s_tension_acc = 0;
         s_tension_acc_n = 0;
     }
@@ -222,10 +213,10 @@ void tension_process() {
 
 
 
-int32_t tension_get_feeder_freq()  { return 1000000 / g_feeder_period_us; }
-int32_t tension_get_brake_freq()   { return 1000000 / g_brake_period_us; }
-int32_t tension_get_tension_bins() { return g_tension_bins; }
-int32_t tension_get_tension_g()    { return abs(g_tension_bins) / TENSION_SCALE; }
+int32_t tension_get_feeder_period_us() { return g_feeder_period_us; }
+int32_t tension_get_brake_period_us()  { return g_brake_period_us;  }
+int32_t tension_get_tension_bins()     { return g_tension_bins; }
+int32_t tension_get_tension_g()        { return abs(g_tension_bins) / TENSION_SCALE; }
 
 
 

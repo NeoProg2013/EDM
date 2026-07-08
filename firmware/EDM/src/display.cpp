@@ -49,8 +49,8 @@ void display_update() {
         tft.drawText(5, y, "", COLOR_WHITE); y += 15;
         tft.drawText(5, y, "Tension (bin): ---", COLOR_WHITE); y += 15;
         tft.drawText(5, y, "  Tension (g): ---", COLOR_WHITE); y += 15;
-        tft.drawText(5, y, "  Feeder (Hz): ---", COLOR_WHITE); y += 15;
-        tft.drawText(5, y, "   Brake (Hz): ---", COLOR_WHITE); y += 15;
+        tft.drawText(5, y, "  Feeder (us): ---", COLOR_WHITE); y += 15;
+        tft.drawText(5, y, "   Brake (us): ---", COLOR_WHITE); y += 15;
 
         // Draw pulse
         int x = 5;
@@ -154,12 +154,12 @@ void display_update() {
 
     // Feeder freq
     if (s_call_counter == 7) {
-        static int32_t s_last_feeder_freq = -1;
-        int32_t v = tension_get_feeder_freq();
-        if (s_last_feeder_freq != v) {
+        static int32_t s_last_feeder_period_us = -1;
+        int32_t v = tension_get_feeder_period_us();
+        if (s_last_feeder_period_us != v) {
             tft.fillRectangle(106, y, 150, y + 8, COLOR_BLACK);
             tft.drawText(106, y, String(1000000 / v), COLOR_YELLOW);
-            s_last_feeder_freq = v;
+            s_last_feeder_period_us = v;
         }
         return;
     }
@@ -167,12 +167,12 @@ void display_update() {
 
     // Brake freq
     if (s_call_counter == 8) {
-        static int32_t s_last_brake_freq = -1;
-        int32_t v = tension_get_brake_freq();
-        if (s_last_brake_freq != v) {
+        static int32_t s_last_brake_period_us = -1;
+        int32_t v = tension_get_brake_period_us();
+        if (s_last_brake_period_us != v) {
             tft.fillRectangle(106, y, 150, y + 8, COLOR_BLACK);
             tft.drawText(106, y, String(1000000 / v), COLOR_YELLOW);
-            s_last_brake_freq = v;
+            s_last_brake_period_us = v;
         }
         return;
     }
@@ -193,7 +193,7 @@ void display_update() {
     // T0
     if (s_call_counter == 10) {
         static int32_t s_last_t0 = -1;
-        int32_t v = spark_get_t1_us();
+        int32_t v = spark_get_t0_us();
         if (s_last_t0 != v) {
             tft.fillRectangle(100, 180, 160, 195, COLOR_BLACK);
             tft.drawText(105, 185, String(v) + " us", COLOR_YELLOW);

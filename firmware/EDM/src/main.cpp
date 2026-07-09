@@ -22,42 +22,28 @@
 
 
 
-
-
-uint32_t g_spark_time_us = 0;
-bool g_is_short_circuit = false;
+uint32_t g_axis_x_period_us = 10000;
 
 bool g_is_enabled = false;
 
 
 void keyboard_process() {
-    spark_set_t1_us(spark_get_t1_us() + (int)(digitalRead(KBRD_T1_INC_BUTTON) == LOW));
-    spark_set_t1_us(spark_get_t1_us() - (int)(digitalRead(KBRD_T1_DEC_BUTTON) == LOW));
-    spark_set_t0_us(spark_get_t0_us() + (int)(digitalRead(KBRD_T0_INC_BUTTON) == LOW));
-    spark_set_t0_us(spark_get_t0_us() - (int)(digitalRead(KBRD_T0_DEC_BUTTON) == LOW));
+    // spark_set_t1_us(spark_get_t1_us() + (int)(digitalRead(KBRD_T1_INC_BUTTON) == LOW));
+    // spark_set_t1_us(spark_get_t1_us() - (int)(digitalRead(KBRD_T1_DEC_BUTTON) == LOW));
+    // spark_set_t0_us(spark_get_t0_us() + (int)(digitalRead(KBRD_T0_INC_BUTTON) == LOW));
+    // spark_set_t0_us(spark_get_t0_us() - (int)(digitalRead(KBRD_T0_DEC_BUTTON) == LOW));
+    g_axis_x_period_us += (int)(digitalRead(KBRD_T1_INC_BUTTON) == LOW);
+    g_axis_x_period_us -= (int)(digitalRead(KBRD_T1_DEC_BUTTON) == LOW);
+
 
     static int s_last_start_stop_button_state = HIGH;
     int v = digitalRead(KBRD_START_STOP_BUTTON);
     if (v == LOW && s_last_start_stop_button_state == HIGH) {
         g_is_enabled = !g_is_enabled;
-        g_is_short_circuit = false;
     }
     s_last_start_stop_button_state = v;
 }
 
-
-
-
-// void spark_feedback_irq(void) {
-//     bool state = (g_APinDescription[SPARK_SHORT_CIRCUIT].pPort->PIO_PDSR & g_APinDescription[SPARK_SHORT_CIRCUIT].ulPin);
-
-//     static uint32_t s_start = 0;
-//     if (state == HIGH) {
-//         g_spark_time_us = micros() - s_start;
-//     } else {
-//         s_start = micros();
-//     }
-// }
 
 TIM_HandleTypeDef g_x_htim = {0};
 TIM_HandleTypeDef g_htim8 = {0};
@@ -166,7 +152,7 @@ void setup() {
     g_x_htim.Instance               = TIM1;
     g_x_htim.Init.Prescaler         = 167; // Prescaler = 168 - 1 = 83: 1 tick = 1 us
     g_x_htim.Init.CounterMode       = TIM_COUNTERMODE_UP;
-    g_x_htim.Init.Period            = 9999;
+    g_x_htim.Init.Period            = g_axis_x_period_us;
     g_x_htim.Init.ClockDivision     = TIM_CLOCKDIVISION_DIV1;
     g_x_htim.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE; // To avoid glitch for period update
     HAL_TIM_PWM_Init(&g_x_htim);
@@ -174,7 +160,7 @@ void setup() {
     // Setup PWM channel (50%)
     TIM_OC_InitTypeDef x_pwm = {0};
     x_pwm.OCMode = TIM_OCMODE_PWM1; // HIGH while counter < CCR
-    x_pwm.Pulse  = 5000;            // CCR
+    x_pwm.Pulse  = g_axis_x_period_us / 2; // CCR
     HAL_TIM_PWM_ConfigChannel(&g_x_htim, &x_pwm, TIM_CHANNEL_4);
 
     __HAL_TIM_MOE_ENABLE(&g_x_htim);
@@ -214,6 +200,16 @@ void stop_axis_x() {
     HAL_GPIO_WritePin(X_EN_PORT, X_EN_PIN, GPIO_PIN_SET);
 }
 
+void update_axis_x_speed() {
+    if (g_axis_x_period_us < 1000)  g_axis_x_period_us = 1000;
+    if (g_axis_x_period_us > 30000) g_axis_x_period_us = 30000;
+
+    // Update feeder freq
+    __HAL_TIM_SET_AUTORELOAD(&g_x_htim, g_axis_x_period_us);
+    __HAL_TIM_SET_COMPARE(&g_x_htim, TIM_CHANNEL_4, g_axis_x_period_us / 2);
+}
+
+
 
 
 // void PWM_Handler(void) {
@@ -233,7 +229,8 @@ void loop() {
     static uint32_t s_last_update_params_time_ms = 0;
     if (millis() - s_last_update_params_time_ms > 50) {
         keyboard_process();
-        spark_pwm_update();
+        // spark_pwm_update();
+        update_axis_x_speed();
         display_update();
         s_last_update_params_time_ms = millis();
     }

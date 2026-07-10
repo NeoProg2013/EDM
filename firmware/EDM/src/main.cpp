@@ -23,6 +23,7 @@
 
 
 uint32_t g_axis_x_period_us = 10000;
+uint32_t g_short_circuit_counter = 0;
 
 bool g_is_enabled = false;
 
@@ -32,8 +33,8 @@ void keyboard_process() {
     // spark_set_t1_us(spark_get_t1_us() - (int)(digitalRead(KBRD_T1_DEC_BUTTON) == LOW));
     // spark_set_t0_us(spark_get_t0_us() + (int)(digitalRead(KBRD_T0_INC_BUTTON) == LOW));
     // spark_set_t0_us(spark_get_t0_us() - (int)(digitalRead(KBRD_T0_DEC_BUTTON) == LOW));
-    g_axis_x_period_us += (int)(digitalRead(KBRD_T1_INC_BUTTON) == LOW);
-    g_axis_x_period_us -= (int)(digitalRead(KBRD_T1_DEC_BUTTON) == LOW);
+    g_axis_x_period_us += 10 * (int)(digitalRead(KBRD_T1_INC_BUTTON) == LOW);
+    g_axis_x_period_us -= 10 * (int)(digitalRead(KBRD_T1_DEC_BUTTON) == LOW);
 
 
     static int s_last_start_stop_button_state = HIGH;
@@ -183,11 +184,6 @@ void setup() {
 
 
     init_feedback();
-
-
-    // // Feedback
-    // pinMode(SPARK_SHORT_CIRCUIT, INPUT_PULLUP);
-    // attachInterrupt(SPARK_SHORT_CIRCUIT, spark_feedback_irq, CHANGE);
 }
 
 void start_axis_x() {
@@ -246,6 +242,7 @@ void loop() {
         if (current_cnt > 10000) {
             HAL_GPIO_WritePin(X_DIR_PORT, X_DIR_PIN, GPIO_PIN_RESET);
             s_reverse_dir_start_time_us = micros();
+            ++g_short_circuit_counter;
         } else {
             if (micros() - s_reverse_dir_start_time_us > 100 * 1000) {
                 HAL_GPIO_WritePin(X_DIR_PORT, X_DIR_PIN, GPIO_PIN_SET);

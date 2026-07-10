@@ -10,7 +10,8 @@
 
 TFT_22_ILI9225 tft(TFT_RST, TFT_RS, TFT_CS, TFT_LED, 255);
 
-extern uint32_t g_spark_time_us;
+extern uint32_t g_axis_x_period_us;
+extern uint32_t g_short_circuit_counter;
 extern TIM_HandleTypeDef g_htim8;
 
 void display_init() {
@@ -44,9 +45,9 @@ void display_update() {
         tft.setFont(Terminal6x8, true);
         int y = 40;
         tft.drawText(5, y, "    Freq (Hz): ---", COLOR_WHITE); y += 15;
-        tft.drawText(5, y, "   Spark time: ---", COLOR_WHITE); y += 15;
-        tft.drawText(5, y, "", COLOR_WHITE); y += 15;
-        tft.drawText(5, y, "", COLOR_WHITE); y += 15;
+        tft.drawText(5, y, "    S/C count: ---", COLOR_WHITE); y += 15;
+        tft.drawText(5, y, "X period (us): ---", COLOR_WHITE); y += 15;
+        tft.drawText(5, y, "Y period (us): ---", COLOR_WHITE); y += 15;
         tft.drawText(5, y, "Tension (bin): ---", COLOR_WHITE); y += 15;
         tft.drawText(5, y, "  Tension (g): ---", COLOR_WHITE); y += 15;
         tft.drawText(5, y, "  Feeder (us): ---", COLOR_WHITE); y += 15;
@@ -99,38 +100,44 @@ void display_update() {
     }
     y += 15;
 
-    // Spark time
+    // Short circuit count
     if (s_call_counter == 3) {
-        static uint32_t s_last_spark_time_us = -1;
-        if (s_last_spark_time_us != g_spark_time_us) {
+        static uint32_t s_last_short_circuit_counter = -1;
+        if (s_last_short_circuit_counter != g_short_circuit_counter) {
             tft.fillRectangle(106, y, 150, y + 8, COLOR_BLACK);
-            tft.drawText(106, y, String(g_spark_time_us), COLOR_YELLOW);
-            s_last_spark_time_us = g_spark_time_us;
+            tft.drawText(106, y, String(g_short_circuit_counter), COLOR_YELLOW);
+            s_last_short_circuit_counter = g_short_circuit_counter;
         }
         return;
     }
     y += 15;
 
+    // X axis period
     if (s_call_counter == 4) {
-        tft.fillRectangle(5, y, 150, y + 8, COLOR_BLACK);
-        uint32_t current_cnt = __HAL_TIM_GET_COUNTER(&g_htim8);
-        int32_t period_ticks = HAL_TIM_ReadCapturedValue(&g_htim8, TIM_CHANNEL_2);
-        int32_t high_ticks = HAL_TIM_ReadCapturedValue(&g_htim8, TIM_CHANNEL_1);
-        if (current_cnt > 10000) {
-            period_ticks = 0;
-            high_ticks = 0;
+        static uint32_t s_last_axis_x_period_us = -1;
+        if (s_last_axis_x_period_us != g_axis_x_period_us) {
+            tft.fillRectangle(106, y, 150, y + 8, COLOR_BLACK);
+            tft.drawText(106, y, String(g_axis_x_period_us), COLOR_YELLOW);
+            s_last_axis_x_period_us = g_axis_x_period_us;
         }
-        tft.drawText(5, y, String(period_ticks), COLOR_YELLOW);
-        tft.drawText(106, y, String(high_ticks), COLOR_YELLOW);
         return;
     }
     y += 15;
 
-    // Spacing
+    // Y axis period
+    if (s_call_counter == 5) {
+        // static uint32_t s_last_axis_x_period_us = -1;
+        // if (s_last_axis_x_period_us != g_axis_x_period_us) {
+        //     tft.fillRectangle(106, y, 150, y + 8, COLOR_BLACK);
+        //     tft.drawText(106, y, String(g_axis_x_period_us), COLOR_YELLOW);
+        //     s_last_axis_x_period_us = g_axis_x_period_us;
+        // }
+        return;
+    }
     y += 15;
 
     // Tension (bins)
-    if (s_call_counter == 5) {
+    if (s_call_counter == 6) {
         static int32_t s_last_tension_bins = -1;
         int32_t v = tension_get_tension_bins();
         if (s_last_tension_bins != v) {
@@ -143,7 +150,7 @@ void display_update() {
     y += 15;
 
     // Tension (g)
-    if (s_call_counter == 6) {
+    if (s_call_counter == 7) {
         int32_t v = tension_get_tension_g();
         static int32_t s_last_tension_g = -1;
         if (s_last_tension_g != v) {
@@ -156,7 +163,7 @@ void display_update() {
     y += 15;
 
     // Feeder freq
-    if (s_call_counter == 7) {
+    if (s_call_counter == 8) {
         static int32_t s_last_feeder_period_us = -1;
         int32_t v = tension_get_feeder_period_us();
         if (s_last_feeder_period_us != v) {
@@ -169,7 +176,7 @@ void display_update() {
     y += 15;
 
     // Brake freq
-    if (s_call_counter == 8) {
+    if (s_call_counter == 9) {
         static int32_t s_last_brake_period_us = -1;
         int32_t v = tension_get_brake_period_us();
         if (s_last_brake_period_us != v) {
@@ -182,7 +189,7 @@ void display_update() {
     y += 15;
 
     // T1
-    if (s_call_counter == 9) {
+    if (s_call_counter == 10) {
         static int32_t s_last_t1 = -1;
         int32_t v = spark_get_t1_us();
         if (s_last_t1 != v) {
@@ -194,7 +201,7 @@ void display_update() {
     }
 
     // T0
-    if (s_call_counter == 10) {
+    if (s_call_counter == 11) {
         static int32_t s_last_t0 = -1;
         int32_t v = spark_get_t0_us();
         if (s_last_t0 != v) {

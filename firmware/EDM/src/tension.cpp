@@ -30,7 +30,7 @@ static TIM_HandleTypeDef g_head_brake_htim  = {0};
 
 static bool    g_is_enabled       = false;
 static int32_t g_feeder_period_us = 1000000UL / 100;
-static int32_t g_brake_period_us  = 1000000UL / 70;
+static int32_t g_brake_period_us  = 1000000UL / 75;
 static int32_t g_tension_bins     = 0;
 
 static void update_head_speed();
@@ -197,9 +197,9 @@ void tension_process() {
         if (g_is_enabled) {
             int32_t d = -1001000 - (s_tension_acc / s_tension_acc_n);
             if (d > 100) {
-                g_brake_period_us = constrain(g_brake_period_us - 10, 2000, 15000);
+                g_brake_period_us = constrain(g_brake_period_us - 10, 2000, 14000);
             } else if (d < -100) {
-                g_brake_period_us = constrain(g_brake_period_us + 10, 2000, 15000);
+                g_brake_period_us = constrain(g_brake_period_us + 10, 2000, 14000);
             }
             update_head_speed();
         }

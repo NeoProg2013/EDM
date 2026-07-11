@@ -30,8 +30,10 @@ static TIM_HandleTypeDef g_head_brake_htim  = {0};
 
 static bool    g_is_enabled       = false;
 static int32_t g_feeder_period_us = 1000000UL / 100;
-static int32_t g_brake_period_us  = 1000000UL / 75;
+static int32_t g_brake_period_us  = 1000000UL / 90;
 static int32_t g_tension_bins     = 0;
+
+static const int32_t g_brake_period_base_us = 1000000UL / 100;
 
 static void update_head_speed();
 
@@ -108,7 +110,7 @@ void tension_init() {
     // Setup PWM channel: duty 50%
     TIM_OC_InitTypeDef brake_pwm = {0};
     brake_pwm.OCMode     = TIM_OCMODE_PWM1; // HIGH while counter < CCR
-    brake_pwm.Pulse      = 0;  // CCR
+    brake_pwm.Pulse      = 0; // CCR
     brake_pwm.OCPolarity = TIM_OCPOLARITY_HIGH;
     brake_pwm.OCFastMode = TIM_OCFAST_DISABLE;
     HAL_TIM_PWM_ConfigChannel(&g_head_brake_htim, &brake_pwm, TIM_CHANNEL_4);
@@ -189,17 +191,22 @@ void tension_process() {
     static int32_t s_tension_acc_n = 0;
 
     if (g_tension_sensor.is_ready()) {
-        s_tension_acc += g_tension_sensor.read();
+        int32_t s24 = g_tension_sensor.read();
+        s24 = -s24; // Flip
+        if (s24 < 0) {
+            s24 = 0; // Cutout wrong load direction
+        }
+        s_tension_acc += s24;
         s_tension_acc_n++;
     }
 
-    if (s_tension_acc_n >= 10) {
+    if (s_tension_acc_n >= 20) {
         if (g_is_enabled) {
-            int32_t d = -1001000 - (s_tension_acc / s_tension_acc_n);
-            if (d > 100) {
-                g_brake_period_us = constrain(g_brake_period_us - 10, 2000, 14000);
-            } else if (d < -100) {
-                g_brake_period_us = constrain(g_brake_period_us + 10, 2000, 14000);
+            int32_t v = (s_tension_acc / s_tension_acc_n);
+            int32_t d = 1020000 - v; // 1020000 bin = 600g
+            int32_t offset_us = d / 255;
+            if (abs(d) > 100) {
+                g_brake_period_us = constrain(g_brake_period_base_us - offset_us, 9000, 12000);
             }
             update_head_speed();
         }
@@ -215,7 +222,7 @@ void tension_process() {
 
 int32_t tension_get_feeder_period_us() { return g_feeder_period_us; }
 int32_t tension_get_brake_period_us()  { return g_brake_period_us;  }
-int32_t tension_get_tension_bins()     { return g_tension_bins; }
+int32_t tension_get_tension_bins()     { return g_tension_bins;     }
 int32_t tension_get_tension_g()        { return abs(g_tension_bins) / TENSION_SCALE; }
 
 

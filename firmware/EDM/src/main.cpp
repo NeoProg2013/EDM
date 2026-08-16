@@ -61,6 +61,23 @@ TIM_HandleTypeDef g_htim8 = {0};
 #define FEEDBACK_PIN          (GPIO_PIN_6)
 #define FEEDBACK_PORT         (GPIOC)
 
+// Инициализация аппаратного измерения сигнала обратной связи на PC6 через TIM8.
+// Таймер включается в slave reset mode по входу TI1FP1. В этой схеме активный trigger сбрасывает CNT в 0
+//
+// 4. Каналы input capture настраиваются в PWM-input-подобную конфигурацию:
+//    - CH1: прямой вход TI1, захват по FALLING
+//    - CH2: косвенный вход от того же TI1, захват по RISING
+//
+//    В результате при чтении регистров захвата в основном цикле получается:
+//    - TIM_CHANNEL_1 -> длительность высокого уровня сигнала (high time, мкс)
+//    - TIM_CHANNEL_2 -> полный период сигнала между соседними фронтами (мкс)
+//
+// 5. Затем оба канала запускаются через HAL_TIM_IC_Start().
+//
+// В текущей логике проекта этот feedback используется для контроля состояния
+// процесса: если счётчик TIM8 слишком долго не сбрасывался (current_cnt > 10000),
+// код трактует это как отсутствие ожидаемых импульсов / признак короткого
+// замыкания и останавливает ось X.
 void init_feedback() {
     GPIO_InitTypeDef x_step_gpio = {0};
     x_step_gpio.Pin       = FEEDBACK_PIN;
@@ -88,7 +105,7 @@ void init_feedback() {
     slave.TriggerFilter    = 0;
     HAL_TIM_SlaveConfigSynchro(&g_htim8, &slave);
 
-    // Setup input CH2 (RISING)
+    // Setup input CH2 (FALLING)
     TIM_IC_InitTypeDef in = {0};
     in.ICPolarity  = TIM_ICPOLARITY_FALLING;
     in.ICSelection = TIM_ICSELECTION_DIRECTTI;
@@ -96,7 +113,7 @@ void init_feedback() {
     in.ICFilter    = 4; 
     HAL_TIM_IC_ConfigChannel(&g_htim8, &in, TIM_CHANNEL_1);
 
-    // Setup input CH1 (FALLING)
+    // Setup input CH1 (RISING)
     in.ICPolarity  = TIM_ICPOLARITY_RISING;
     in.ICSelection = TIM_ICSELECTION_INDIRECTTI; // Indirect link CH1 to CH2 pin
     HAL_TIM_IC_ConfigChannel(&g_htim8, &in, TIM_CHANNEL_2);
@@ -237,15 +254,21 @@ void loop() {
     static uint32_t s_reverse_dir_start_time_us = 0;
     if (spark_is_enabled()) {
         uint32_t current_cnt = __HAL_TIM_GET_COUNTER(&g_htim8);
-        int32_t period_us = HAL_TIM_ReadCapturedValue(&g_htim8, TIM_CHANNEL_2);
-        int32_t high_us   = HAL_TIM_ReadCapturedValue(&g_htim8, TIM_CHANNEL_1);
-        if (current_cnt > 10000) {
-            HAL_GPIO_WritePin(X_DIR_PORT, X_DIR_PIN, GPIO_PIN_RESET);
+        volatile uint32_t low_us = HAL_TIM_ReadCapturedValue(&g_htim8, TIM_CHANNEL_2);
+
+        // Алгоритм работы:
+        // - При коротком замыкании через проволоку длительность импульса составляет 3us
+        // - Условие "current_cnt > 10000" как защита от жесткого КЗ, но такого быть не должно
+        // - Длительность импульса холостого хода - 12 us
+        // - При обычной работе генератора во время реза, длительность 3-4 us.
+        // Мы ждем пока станок полностью прорежет текущий отрезок и только потом делаем шаг
+        if (current_cnt > 10000 || low_us < 8) { // current_cnt > 10000 -- no pulse long time, low_us < 8 -- spark
+            stop_axis_x();
             s_reverse_dir_start_time_us = micros();
             ++g_short_circuit_counter;
         } else {
             if (micros() - s_reverse_dir_start_time_us > 100 * 1000) {
-                HAL_GPIO_WritePin(X_DIR_PORT, X_DIR_PIN, GPIO_PIN_SET);
+                start_axis_x();
             }
         }
     }

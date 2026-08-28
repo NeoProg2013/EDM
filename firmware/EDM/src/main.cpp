@@ -213,6 +213,18 @@ void stop_axis_x() {
     HAL_GPIO_WritePin(X_EN_PORT, X_EN_PIN, GPIO_PIN_SET);
 }
 
+void enable_axis_x() {
+    HAL_TIM_PWM_Start(&g_x_htim, TIM_CHANNEL_4);
+    HAL_GPIO_WritePin(X_EN_PORT, X_EN_PIN, GPIO_PIN_RESET);
+}
+
+void disable_axis_x() {
+    HAL_TIM_PWM_Stop(&g_x_htim, TIM_CHANNEL_4);
+    HAL_GPIO_WritePin(X_EN_PORT, X_EN_PIN, GPIO_PIN_SET);
+}
+
+
+
 void update_axis_x_speed() {
     if (g_axis_x_period_us < 1000)  g_axis_x_period_us = 1000;
     if (g_axis_x_period_us > 30000) g_axis_x_period_us = 30000;
@@ -251,23 +263,23 @@ void loop() {
 
     //
     // Short circuit control
-    static uint32_t s_reverse_dir_start_time_us = 0;
+    static uint32_t s_reverse_dir_start_time_ms = 0;
     if (spark_is_enabled()) {
         uint32_t current_cnt = __HAL_TIM_GET_COUNTER(&g_htim8);
         volatile uint32_t low_us = HAL_TIM_ReadCapturedValue(&g_htim8, TIM_CHANNEL_2);
 
         // Алгоритм работы:
         // - При коротком замыкании через проволоку длительность импульса составляет 3us
-        // - Условие "current_cnt > 10000" как защита от жесткого КЗ, но такого быть не должно
+        // - Условие "current_cnt > 10000" защита от КЗ, но такого быть не должно
         // - Длительность импульса холостого хода - 12 us
-        // - При обычной работе генератора во время реза, длительность 3-4 us.
+        // - При обычной работе генератора во время реза, длительность 1-3 us.
         // Мы ждем пока станок полностью прорежет текущий отрезок и только потом делаем шаг
-        if (current_cnt > 10000 || low_us < 8) { // current_cnt > 10000 -- no pulse long time, low_us < 8 -- spark
+        if (current_cnt > 1000 || low_us < 2) { // current_cnt > 1000 us -- no pulse long time
             stop_axis_x();
-            s_reverse_dir_start_time_us = micros();
+            s_reverse_dir_start_time_ms = millis();
             ++g_short_circuit_counter;
         } else {
-            if (micros() - s_reverse_dir_start_time_us > 100 * 1000) {
+            if (millis() - s_reverse_dir_start_time_ms > 100) { // 100 ms
                 start_axis_x();
             }
         }
@@ -284,14 +296,14 @@ void loop() {
         if (!is_periph_enabled) {
             tension_start();
             spark_pwm_start();
-            start_axis_x();
+            enable_axis_x();
             is_periph_enabled = true;
         }
     } else {
         if (is_periph_enabled) {
             tension_stop();
             spark_pwm_stop();
-            stop_axis_x();
+            disable_axis_x();
             is_periph_enabled = false;
         }
     }

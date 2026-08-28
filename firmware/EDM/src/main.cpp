@@ -1,83 +1,36 @@
-#include <Arduino.h>
-#include <SPI.h>
+#include "core.h"
 #include "tension.h"
 #include "spark.h"
-#include "display.h"
-
-
-
-#define KBRD_T1_INC_BUTTON          (PE2)
-#define KBRD_T1_DEC_BUTTON          (PE3)
-#define KBRD_T0_INC_BUTTON          (PE4)
-#define KBRD_T0_DEC_BUTTON          (PE5)
-#define KBRD_START_STOP_BUTTON      (PE6)
-
+#include "telemetry.h"
+#include "motion_controller.h"
 
 // #define DEBUG_PIN_1                 (PD10)
 // #define DEBUG_PIN_2                 (PD9)
 // #define DEBUG_PIN_3                 (PD8)
 // #define DEBUG_PIN_4                 (PD15)
 
+motion_controller_t motion_controller;
 
-
-
-
-uint32_t g_axis_x_period_us = 10000;
-uint32_t g_short_circuit_counter = 0;
 
 bool g_is_enabled = false;
-
-
-void keyboard_process() {
-    // spark_set_t1_us(spark_get_t1_us() + (int)(digitalRead(KBRD_T1_INC_BUTTON) == LOW));
-    // spark_set_t1_us(spark_get_t1_us() - (int)(digitalRead(KBRD_T1_DEC_BUTTON) == LOW));
-    // spark_set_t0_us(spark_get_t0_us() + (int)(digitalRead(KBRD_T0_INC_BUTTON) == LOW));
-    // spark_set_t0_us(spark_get_t0_us() - (int)(digitalRead(KBRD_T0_DEC_BUTTON) == LOW));
-    g_axis_x_period_us += 10 * (int)(digitalRead(KBRD_T1_INC_BUTTON) == LOW);
-    g_axis_x_period_us -= 10 * (int)(digitalRead(KBRD_T1_DEC_BUTTON) == LOW);
-
-
-    static int s_last_start_stop_button_state = HIGH;
-    int v = digitalRead(KBRD_START_STOP_BUTTON);
-    if (v == LOW && s_last_start_stop_button_state == HIGH) {
-        g_is_enabled = !g_is_enabled;
-    }
-    s_last_start_stop_button_state = v;
-}
-
-
-TIM_HandleTypeDef g_x_htim = {0};
+uint16_t g_arc_counter = 0;
 TIM_HandleTypeDef g_htim8 = {0};
 
 
-#define X_EN_PIN          (GPIO_PIN_10)
-#define X_EN_PORT         (GPIOA)
-#define X_STEP_PIN        (GPIO_PIN_11)
-#define X_STEP_PORT       (GPIOA)
-#define X_DIR_PIN         (GPIO_PIN_12)
-#define X_DIR_PORT        (GPIOA)
-
-
-#define FEEDBACK_PIN          (GPIO_PIN_6)
-#define FEEDBACK_PORT         (GPIOC)
+#define FEEDBACK_PIN            (GPIO_PIN_6)
+#define FEEDBACK_PORT           (GPIOC)
 
 // Инициализация аппаратного измерения сигнала обратной связи на PC6 через TIM8.
 // Таймер включается в slave reset mode по входу TI1FP1. В этой схеме активный trigger сбрасывает CNT в 0
 //
-// 4. Каналы input capture настраиваются в PWM-input-подобную конфигурацию:
-//    - CH1: прямой вход TI1, захват по FALLING
-//    - CH2: косвенный вход от того же TI1, захват по RISING
+// Каналы настраиваются в PWM input capture конфигурацию:
+//    - CH1: захват по FALLING, reset CNT
+//    - CH2: захват по RISING
 //
-//    В результате при чтении регистров захвата в основном цикле получается:
-//    - TIM_CHANNEL_1 -> длительность высокого уровня сигнала (high time, мкс)
+// В результате при чтении регистров захвата в основном цикле получается:
+//    - TIM_CHANNEL_1 -> длительность высокого уровня сигнала (мкс)
 //    - TIM_CHANNEL_2 -> полный период сигнала между соседними фронтами (мкс)
 //
-// 5. Затем оба канала запускаются через HAL_TIM_IC_Start().
-//
-// В текущей логике проекта этот feedback используется для контроля состояния
-// процесса: если счётчик TIM8 слишком долго не сбрасывался (current_cnt > 10000),
-// код трактует это как отсутствие ожидаемых импульсов / признак короткого
-// замыкания и останавливает ось X.
 void init_feedback() {
     GPIO_InitTypeDef x_step_gpio = {0};
     x_step_gpio.Pin       = FEEDBACK_PIN;
@@ -122,177 +75,159 @@ void init_feedback() {
     HAL_TIM_IC_Start(&g_htim8, TIM_CHANNEL_2);
 }
 
-void setup() {
+
+
+static void system_clock_init() {
+    __HAL_RCC_PWR_CLK_ENABLE();
+    __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
+    
+    // Init HSE & PLL
+    RCC_OscInitTypeDef osc = {0};
+    osc.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+    osc.HSEState       = RCC_HSE_ON;
+    osc.PLL.PLLState   = RCC_PLL_ON;
+    osc.PLL.PLLSource  = RCC_PLLSOURCE_HSE;
+    osc.PLL.PLLM = 8;             // 8 MHz -> 1 MHz
+    osc.PLL.PLLN = 336;           // 1 MHz -> 336 MHz
+    osc.PLL.PLLP = RCC_PLLP_DIV2; // SYSCLK: 336 MHz -> 168 MHz
+    osc.PLL.PLLQ = 7;             // USB/SDIO: 336 MHz -> 48 MHz
+    if (HAL_RCC_OscConfig(&osc) != HAL_OK) {
+        while (1);
+    }
+
+    // Setup clock source as PLL
+    // For 3V3 on 168 MHz require 5 ticks for flash memory
+    RCC_ClkInitTypeDef clk = {0};
+    clk.ClockType      = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK |RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
+    clk.SYSCLKSource   = RCC_SYSCLKSOURCE_PLLCLK;
+    clk.AHBCLKDivider  = RCC_SYSCLK_DIV1; // HCLK = 168 MHz
+    clk.APB1CLKDivider = RCC_HCLK_DIV4;   // PCLK1 = 42 MHz
+    clk.APB2CLKDivider = RCC_HCLK_DIV2;   // PCLK2 = 84 MHz
+    if (HAL_RCC_ClockConfig(&clk, FLASH_LATENCY_5) != HAL_OK) {
+        while (1);
+    }
+
     __HAL_RCC_SYSCFG_CLK_ENABLE();
     __HAL_RCC_TIM1_CLK_ENABLE();
     __HAL_RCC_TIM2_CLK_ENABLE();
     __HAL_RCC_TIM3_CLK_ENABLE();
     __HAL_RCC_TIM4_CLK_ENABLE();
     __HAL_RCC_TIM8_CLK_ENABLE();
+    __HAL_RCC_USART2_CLK_ENABLE();
+    __HAL_RCC_DMA1_CLK_ENABLE();
     __HAL_RCC_GPIOA_CLK_ENABLE();
     __HAL_RCC_GPIOB_CLK_ENABLE();
     __HAL_RCC_GPIOC_CLK_ENABLE();
     __HAL_RCC_GPIOD_CLK_ENABLE();
     __HAL_RCC_GPIOE_CLK_ENABLE();
+}
 
-    
-    // Keyboard
-    pinMode(KBRD_T1_INC_BUTTON, INPUT_PULLUP); // T1 button +
-    pinMode(KBRD_T1_DEC_BUTTON, INPUT_PULLUP); // T1 button -
-    pinMode(KBRD_T0_INC_BUTTON, INPUT_PULLUP); // T0 button +
-    pinMode(KBRD_T0_DEC_BUTTON, INPUT_PULLUP); // T0 button -
-    pinMode(KBRD_START_STOP_BUTTON, INPUT_PULLUP); // Start / stop button
-    
-    // Debug
-    // pinMode(DEBUG_PIN_1, OUTPUT);
-    // pinMode(DEBUG_PIN_2, OUTPUT);
-    // pinMode(DEBUG_PIN_3, OUTPUT);
-    // pinMode(DEBUG_PIN_4, OUTPUT);
-    
-    
-    display_init();
-    tension_init();
-    spark_pwm_init();
+
+int main() {
+    HAL_Init();
+    system_clock_init();
 
     //
-    // Setup X axis
+    // Periph
+    // telemetry_init();
+    // tension_init();
+    // spark_pwm_init();
+    // init_feedback();
 
-    // STEP: PA11 PWM
-    GPIO_InitTypeDef x_step_gpio = {0};
-    x_step_gpio.Pin       = X_STEP_PIN;
-    x_step_gpio.Mode      = GPIO_MODE_AF_PP;
-    x_step_gpio.Pull      = GPIO_NOPULL;
-    x_step_gpio.Speed     = GPIO_SPEED_FREQ_HIGH;
-    x_step_gpio.Alternate = GPIO_AF1_TIM1;
-    HAL_GPIO_Init(X_STEP_PORT, &x_step_gpio);
+    // Motion core
+    motion_controller.init();
+    motion_controller.move_to(-10000, 0);
+    // HAL_Delay(3000);
 
-    // Setup TIM1: ABP2 clock source (168 MHz)
-    g_x_htim.Instance               = TIM1;
-    g_x_htim.Init.Prescaler         = 167; // Prescaler = 168 - 1 = 83: 1 tick = 1 us
-    g_x_htim.Init.CounterMode       = TIM_COUNTERMODE_UP;
-    g_x_htim.Init.Period            = g_axis_x_period_us;
-    g_x_htim.Init.ClockDivision     = TIM_CLOCKDIVISION_DIV1;
-    g_x_htim.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE; // To avoid glitch for period update
-    HAL_TIM_PWM_Init(&g_x_htim);
-
-    // Setup PWM channel (50%)
-    TIM_OC_InitTypeDef x_pwm = {0};
-    x_pwm.OCMode = TIM_OCMODE_PWM1; // HIGH while counter < CCR
-    x_pwm.Pulse  = g_axis_x_period_us / 2; // CCR
-    HAL_TIM_PWM_ConfigChannel(&g_x_htim, &x_pwm, TIM_CHANNEL_4);
-
-    __HAL_TIM_MOE_ENABLE(&g_x_htim);
-
-    // EN: PA10
-    GPIO_InitTypeDef x_en_gpio = {0};
-    x_en_gpio.Pin   = X_EN_PIN;
-    x_en_gpio.Mode  = GPIO_MODE_OUTPUT_PP;
-    x_en_gpio.Speed = GPIO_SPEED_FREQ_LOW;
-    HAL_GPIO_Init(X_EN_PORT, &x_en_gpio);
-    HAL_GPIO_WritePin(X_EN_PORT, X_EN_PIN, GPIO_PIN_SET);
-
-    // DIR: PA12
-    GPIO_InitTypeDef x_dir_gpio = {0};
-    x_dir_gpio.Pin   = X_DIR_PIN;
-    x_dir_gpio.Mode  = GPIO_MODE_OUTPUT_PP;
-    x_dir_gpio.Speed = GPIO_SPEED_FREQ_LOW;
-    HAL_GPIO_Init(X_DIR_PORT, &x_dir_gpio);
-    HAL_GPIO_WritePin(X_DIR_PORT, X_DIR_PIN, GPIO_PIN_SET);
-
-
-    init_feedback();
-}
-
-void start_axis_x() {
-    HAL_TIM_PWM_Start(&g_x_htim, TIM_CHANNEL_4);
-    HAL_GPIO_WritePin(X_EN_PORT, X_EN_PIN, GPIO_PIN_RESET);
-}
-
-void stop_axis_x() {
-    HAL_TIM_PWM_Stop(&g_x_htim, TIM_CHANNEL_4);
-    HAL_GPIO_WritePin(X_EN_PORT, X_EN_PIN, GPIO_PIN_SET);
-}
-
-void update_axis_x_speed() {
-    if (g_axis_x_period_us < 1000)  g_axis_x_period_us = 1000;
-    if (g_axis_x_period_us > 30000) g_axis_x_period_us = 30000;
-
-    // Update feeder freq
-    __HAL_TIM_SET_AUTORELOAD(&g_x_htim, g_axis_x_period_us);
-    __HAL_TIM_SET_COMPARE(&g_x_htim, TIM_CHANNEL_4, g_axis_x_period_us / 2);
-}
-
-
-
-
-// void PWM_Handler(void) {
-//     uint32_t status = PWM->PWM_ISR1; 
-//     if (status & (1 << MOSFET_GATE_CTRL_PWM_CH)) {
-//         ++spark_period_counter;
-//     }
-// }
-
-void HardFault_Handler(void) {
-    while (true);
-}
-
-void loop() {
-    //
-    // Keyboard & TFT
-    static uint32_t s_last_update_params_time_ms = 0;
-    if (millis() - s_last_update_params_time_ms > 50) {
-        keyboard_process();
-        // spark_pwm_update();
-        update_axis_x_speed();
-        display_update();
-        s_last_update_params_time_ms = millis();
+    while (1) {
+        //
+        // Motion core
+        motion_controller.process();
     }
 
+    while (1) {
+        //
+        // Telemetry
+        tx_msg_t* tx_msg = telemetry_get_tx_msg();
+        tx_msg->edm_status  = spark_is_enabled(),
+        tx_msg->step_state  = true,
+        tx_msg->freq_hz     = spark_get_freq(),
+        tx_msg->arc_counter = g_arc_counter,
+        tx_msg->tension_g   = tension_get_tension_g(),
+        tx_msg->feeder_us   = tension_get_feeder_period_us(),
+        tx_msg->brake_us    = tension_get_brake_period_us(),
+        tx_msg->t1          = spark_get_t1_us(),
+        tx_msg->t0          = spark_get_t0_us(),
+        telemetry_process();
 
-    //
-    // Short circuit control
-    static uint32_t s_reverse_dir_start_time_us = 0;
-    if (spark_is_enabled()) {
-        uint32_t current_cnt = __HAL_TIM_GET_COUNTER(&g_htim8);
-        volatile uint32_t low_us = HAL_TIM_ReadCapturedValue(&g_htim8, TIM_CHANNEL_2);
+        static uint32_t s_last_update_params_time_ms = 0;
+        if (HAL_GetTick() - s_last_update_params_time_ms > 500) {
+            s_last_update_params_time_ms = HAL_GetTick();
 
-        // Алгоритм работы:
-        // - При коротком замыкании через проволоку длительность импульса составляет 3us
-        // - Условие "current_cnt > 10000" как защита от жесткого КЗ, но такого быть не должно
-        // - Длительность импульса холостого хода - 12 us
-        // - При обычной работе генератора во время реза, длительность 3-4 us.
-        // Мы ждем пока станок полностью прорежет текущий отрезок и только потом делаем шаг
-        if (current_cnt > 10000 || low_us < 8) { // current_cnt > 10000 -- no pulse long time, low_us < 8 -- spark
-            stop_axis_x();
-            s_reverse_dir_start_time_us = micros();
-            ++g_short_circuit_counter;
-        } else {
-            if (micros() - s_reverse_dir_start_time_us > 100 * 1000) {
-                start_axis_x();
+            rx_msg_t rx_msg;
+            telemetry_get_rx_msg(&rx_msg);
+
+            g_is_enabled = rx_msg.edm_status;
+            // TODO: 
+            // uint16_t t0;
+            // uint16_t t1;
+        }
+
+        //
+        // Short circuit control
+        static uint32_t s_arc_last_time_ms = 0;
+        if (spark_is_enabled()) {
+            uint32_t current_cnt = __HAL_TIM_GET_COUNTER(&g_htim8);
+            uint32_t low_us = HAL_TIM_ReadCapturedValue(&g_htim8, TIM_CHANNEL_2);
+
+            // Алгоритм работы:
+            // - При коротком замыкании через проволоку длительность импульса составляет 3us
+            // - Условие "current_cnt > 10000" защита от жесткого КЗ, но такого быть не должно,
+            //   т.к. проволока имеет сопротивление и напряжение не упадет ниже порога срабатывания оптопары
+            // - Длительность импульса холостого хода - 3-12 us, видимо это связано с закрытием транзистора оптопары
+            // - При обычной работе генератора во время реза, длительность 1-2 us.
+            // Мы ждем пока станок полностью прорежет текущий отрезок и только потом делаем следующий шаг
+            // В качестве критерия используется отсутствие искры, т.е. длительность HIGH >= 3 более 100мс
+            //
+            // low_us < 2 - for 3 us T1
+            // low_us < 1 - for 1 us T1
+
+            if (current_cnt > 1000 || low_us < 1) { // current_cnt > 1000 us -- no pulse long time
+                motion_controller.lock();
+                s_arc_last_time_ms = HAL_GetTick();
+                ++g_arc_counter;
+            } else {
+                if (HAL_GetTick() - s_arc_last_time_ms > 100) { // 100 ms
+                    motion_controller.unlock();
+                }
             }
         }
-    }
-    
-    // 
-    // Tension control
-    tension_process();
+        
+        // 
+        // Tension control
+        tension_process();
 
-    //
-    // Shutdown
-    static bool is_periph_enabled = false;
-    if (g_is_enabled) {
-        if (!is_periph_enabled) {
-            tension_start();
-            spark_pwm_start();
-            start_axis_x();
-            is_periph_enabled = true;
-        }
-    } else {
-        if (is_periph_enabled) {
-            tension_stop();
-            spark_pwm_stop();
-            stop_axis_x();
-            is_periph_enabled = false;
+        //
+        // Motion core
+        motion_controller.process();
+
+        //
+        // Shutdown
+        static bool is_periph_enabled = false;
+        if (g_is_enabled) {
+            if (!is_periph_enabled) {
+                tension_start();
+                spark_pwm_start();
+                motion_controller.unlock();
+                is_periph_enabled = true;
+            }
+        } else {
+            if (is_periph_enabled) {
+                tension_stop();
+                spark_pwm_stop();
+                motion_controller.lock();
+                is_periph_enabled = false;
+            }
         }
     }
 }

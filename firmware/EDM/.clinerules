@@ -1,0 +1,47 @@
+# EDM Firmware Cline Rules
+
+## General
+- Keep the first implementation minimal. Do not add speculative features unless explicitly requested.
+- Prefer extending the existing project style over introducing new patterns.
+
+## C++ Style
+- Use include guards, not `#pragma once`.
+- Class names use snake_case with `_t` suffix, for example: `stepper_driver_t`, `axis_t`.
+- Member fields use `m_` prefix, for example: `m_position`.
+- Methods use snake_case, for example: `set_target`, `is_ready`, `get_position`.
+- Use `const` on getters/checkers where possible.
+- Use brace initialization for members where practical:
+  - `int32_t m_target { };`
+  - `stepper_driver_t* m_driver { };`
+- Keep pointer spacing in the current project style:
+  - `GPIO_TypeDef* port`
+  - `stepper_driver_t* m_driver`
+- Prefer explicit `if (...) { return; }` early exits for guard conditions.
+- Keep indentation and spacing consistent with the existing driver code.
+
+## Header / Source Conventions
+- Place class declarations in `.h` and implementations in `.cc`.
+- For drivers and motion-related helpers, prefer placing files under:
+  - `c:\Users\NeoProg\Desktop\EDM\firmware\EDM\src\drivers`
+- Include only what is needed.
+- Prefer local project includes first when appropriate.
+
+## Comments and Documentation
+- Use the existing banner-style Doxygen comments for public methods:
+  - `/// ***************************************************************************`
+  - `/// @brief ...`
+- Keep comments short, concrete, and aligned with actual behavior.
+- Do not leave placeholder comments like `Do something`.
+- If a comment becomes inaccurate after a change, update or remove it in the same edit.
+
+## Editing Rules
+- Preserve existing naming unless there is a clear improvement and it is part of the task.
+- Avoid unnecessary refactors while implementing a focused change.
+- Do not add new dependencies or frameworks unless confirmed by the project.
+- Use absolute paths when referring to files in explanations or plans.
+
+## Validation Rules
+- Always re-read edited files after modification.
+- Run validation commands only when useful and available.
+- If the user explicitly says not to build or run tests, do not run them.
+- If validation cannot be executed because a tool is unavailable, state that clearly.

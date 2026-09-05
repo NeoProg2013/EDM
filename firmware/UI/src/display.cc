@@ -1,12 +1,9 @@
 #include "core.h"
 #include "display.h"
 #include "ILI9225.h"
+#include "telemetry.h"
 
 SPI_HandleTypeDef hspi1 = {0}; // For ILI9225
-
-extern uint32_t tx_counter;
-extern uint32_t rx_counter;
-extern uint32_t desync_counter;
 
 
 
@@ -88,35 +85,37 @@ void display_update() {
     
     // Draw static text
     if (!s_is_init) {
-        ili9225_draw_string(5, 10, ILI9225_COLOR_WHITE, "STATE:", 10);
-        ili9225_draw_string(135, 10, ILI9225_COLOR_RED, "[OFF]", 5);
-        ili9225_draw_line(0, 27, 176, ILI9225_COLOR_GRAY);
+        ili9225_draw_line(0, 27, 176, ILI9225_COLOR_WHITE);
         
         int y = 40;
         ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, " Freq (Hz):"); y += 13;
-        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "       S/C:"); y += 13;
+        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "   Arc cnt:"); y += 13;
         ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, " Tens. (g):"); y += 13;
         ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, " Feed (us):"); y += 13;
         ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "Brake (us):"); y += 13;
         y += 13;
-        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "   Arc (V):"); y += 13;
         ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "   T1 (us):"); y += 13;
         ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "   T0 (us):"); y += 13;
+        y += 13;
+        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "   X steps:"); y += 13;
+
+        ili9225_draw_line(0, 205, 176, ILI9225_COLOR_WHITE);
+        ili9225_draw_string(5, 210, ILI9225_COLOR_WHITE, "TX/RX/DS:");
 
         s_is_init = true;
     }
 
     // State
     if (s_call_counter == 1) {
-        static int32_t s_last_state = -1;
-        bool v = !s_last_state;
-        if (s_last_state != v) {
+        static int32_t s_last_v = -1;
+        bool v = (rand() % 1000) > 500;
+        if (s_last_v != v) {
             if (v) {
                 ili9225_draw_string(135, 10, ILI9225_COLOR_GREEN, "[ ON]", 5);
             } else {
                 ili9225_draw_string(135, 10, ILI9225_COLOR_RED, "[OFF]", 5);
             }
-            s_last_state = v;
+            s_last_v = v;
         }
         return;
     }
@@ -125,23 +124,23 @@ void display_update() {
 
     // Freq
     if (s_call_counter == 2) {
-        static uint32_t s_last_freq = -1;
+        static uint32_t s_last_v = -1;
         uint32_t v = rand() % 100000;
-        if (s_last_freq != v) {
-            ili9225_draw_string(120, y, ILI9225_COLOR_YELLOW, itoa(v, itoa_buffer, 10), 5);
-            s_last_freq = v;
+        if (s_last_v != v) {
+            ili9225_draw_string(90, y, ILI9225_COLOR_YELLOW, itoa(v, itoa_buffer, 10), 5);
+            s_last_v = v;
         }
         return;
     }
     y += 13;
 
-    // Short circuit count
+    // Arc counter
     if (s_call_counter == 3) {
-        static uint32_t s_last_short_circuit_counter = -1;
+        static uint32_t s_last_v = -1;
         uint32_t v = rand() % 100000;
-        if (s_last_short_circuit_counter != v) {
-            ili9225_draw_string(120, y, ILI9225_COLOR_YELLOW, itoa(v, itoa_buffer, 10), 5);
-            s_last_short_circuit_counter = v;
+        if (s_last_v != v) {
+            ili9225_draw_string(90, y, ILI9225_COLOR_YELLOW, itoa(v, itoa_buffer, 10), 5);
+            s_last_v = v;
         }
         return;
     }
@@ -149,11 +148,11 @@ void display_update() {
 
     // Tension (g)
     if (s_call_counter == 4) {
-        static int32_t s_last_tension_g = -1;
+        static int32_t s_last_v = -1;
         int32_t v = rand() % 100000;
-        if (s_last_tension_g != v) {
-            ili9225_draw_string(120, y, ILI9225_COLOR_YELLOW, itoa(v, itoa_buffer, 10), 5);
-            s_last_tension_g = v;
+        if (s_last_v != v) {
+            ili9225_draw_string(90, y, ILI9225_COLOR_YELLOW, itoa(v, itoa_buffer, 10), 5);
+            s_last_v = v;
         }
         return;
     }
@@ -161,11 +160,11 @@ void display_update() {
 
     // Feeder freq
     if (s_call_counter == 5) {
-        static int32_t s_last_feeder_period_us = -1;
+        static int32_t s_last_v = -1;
         int32_t v = rand() % 100000;
-        if (s_last_feeder_period_us != v) {
-            ili9225_draw_string(120, y, ILI9225_COLOR_YELLOW, itoa(v, itoa_buffer, 10), 5);
-            s_last_feeder_period_us = v;
+        if (s_last_v != v) {
+            ili9225_draw_string(90, y, ILI9225_COLOR_YELLOW, itoa(v, itoa_buffer, 10), 5);
+            s_last_v = v;
         }
         return;
     }
@@ -173,48 +172,77 @@ void display_update() {
 
     // Brake freq
     if (s_call_counter == 6) {
-        static int32_t s_last_brake_period_us = -1;
+        static int32_t s_last_v = -1;
         int32_t v = rand() % 100000;
-        if (s_last_brake_period_us != v) {
-            ili9225_draw_string(120, y, ILI9225_COLOR_YELLOW, itoa(v, itoa_buffer, 10), 5);
-            s_last_brake_period_us = v;
+        if (s_last_v != v) {
+            ili9225_draw_string(90, y, ILI9225_COLOR_YELLOW, itoa(v, itoa_buffer, 10), 5);
+            s_last_v = v;
         }
         return;
     }
     y += 13;
-    y += 13;
-
-    // ARC
-    if (s_call_counter == 7) {
-        static int32_t s_last_t1_period_us = -1;
-        int32_t v = rand() % 100000;
-        if (s_last_t1_period_us != v) {
-            ili9225_draw_string(120, y, ILI9225_COLOR_YELLOW, itoa(desync_counter, itoa_buffer, 10), 5);
-            s_last_t1_period_us = v;
-        }
-        return;
-    }
     y += 13;
 
     // T1
-    if (s_call_counter == 8) {
-        static int32_t s_last_t1_period_us = -1;
+    if (s_call_counter == 7) {
+        static int32_t s_last_v = -1;
         int32_t v = rand() % 100000;
-        if (s_last_t1_period_us != v) {
-            ili9225_draw_string(120, y, ILI9225_COLOR_YELLOW, itoa(tx_counter, itoa_buffer, 10), 5);
-            s_last_t1_period_us = v;
+        if (s_last_v != v) {
+            ili9225_draw_string(90, y, ILI9225_COLOR_YELLOW, itoa(v, itoa_buffer, 10), 5);
+            s_last_v = v;
         }
         return;
     }
     y += 13;
 
     // T0
-    if (s_call_counter == 9) {
-        static int32_t s_last_t0_period_us = -1;
+    if (s_call_counter == 8) {
+        static int32_t s_last_v = -1;
         int32_t v = rand() % 100000;
-        if (s_last_t0_period_us != v) {
-            ili9225_draw_string(120, y, ILI9225_COLOR_YELLOW, itoa(rx_counter, itoa_buffer, 10), 5);
-            s_last_t0_period_us = v;
+        if (s_last_v != v) {
+            ili9225_draw_string(90, y, ILI9225_COLOR_YELLOW, itoa(v, itoa_buffer, 10), 5);
+            s_last_v = v;
+        }
+        return;
+    }
+    y += 13;
+    y += 13;
+
+    // X steps
+    if (s_call_counter == 9) {
+        static int32_t s_last_v = -1;
+        int32_t v = rand() % 100000;
+        if (s_last_v != v) {
+            ili9225_draw_string(90, y, ILI9225_COLOR_YELLOW, itoa(v, itoa_buffer, 10), 5);
+            s_last_v = v;
+        }
+        return;
+    }
+    y += 13;
+
+
+    // TX/RX/DS
+    if (s_call_counter == 10) {
+        static int32_t s_last_tx = -1;
+        static int32_t s_last_rx = -1;
+        static int32_t s_last_ds = -1;
+
+        int32_t v = telemetry_get_tx_counter(); 
+        if (s_last_tx != v) {
+            ili9225_draw_string(70, 210, ILI9225_COLOR_YELLOW, itoa(v, itoa_buffer, 10), 3);
+            s_last_tx = v;
+        }
+
+        v = telemetry_get_rx_counter();
+        if (s_last_rx != v) {
+            ili9225_draw_string(100, 210, ILI9225_COLOR_YELLOW, itoa(v, itoa_buffer, 10), 3);
+            s_last_rx = v;
+        }
+
+        v = telemetry_get_desync_counter();
+        if (s_last_ds != v) {
+            ili9225_draw_string(130, 210, ILI9225_COLOR_YELLOW, itoa(v, itoa_buffer, 10), 3);
+            s_last_ds = v;
         }
         return;
     }

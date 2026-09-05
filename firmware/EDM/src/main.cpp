@@ -1,10 +1,7 @@
-#include <Arduino.h>
-#include <SPI.h>
+#include "core.h"
 #include "tension.h"
 #include "spark.h"
-#include "display.h"
-
-
+#include "telemetry.h"
 
 #define KBRD_T1_INC_BUTTON          (PE2)
 #define KBRD_T1_DEC_BUTTON          (PE3)
@@ -19,13 +16,11 @@
 // #define DEBUG_PIN_4                 (PD15)
 
 
-
-
-
 uint32_t g_axis_x_period_us = 10000;
-uint32_t g_short_circuit_counter = 0;
+uint32_t g_arc_counter = 0;
 
 bool g_is_enabled = false;
+bool g_is_axis_x_enabled = false;
 
 
 void keyboard_process() {
@@ -50,16 +45,16 @@ TIM_HandleTypeDef g_x_htim = {0};
 TIM_HandleTypeDef g_htim8 = {0};
 
 
-#define X_EN_PIN          (GPIO_PIN_10)
-#define X_EN_PORT         (GPIOA)
-#define X_STEP_PIN        (GPIO_PIN_11)
-#define X_STEP_PORT       (GPIOA)
-#define X_DIR_PIN         (GPIO_PIN_12)
-#define X_DIR_PORT        (GPIOA)
+#define X_EN_PIN                (GPIO_PIN_10)
+#define X_EN_PORT               (GPIOA)
+#define X_STEP_PIN              (GPIO_PIN_11)
+#define X_STEP_PORT             (GPIOA)
+#define X_DIR_PIN               (GPIO_PIN_12)
+#define X_DIR_PORT              (GPIOA)
 
 
-#define FEEDBACK_PIN          (GPIO_PIN_6)
-#define FEEDBACK_PORT         (GPIOC)
+#define FEEDBACK_PIN            (GPIO_PIN_6)
+#define FEEDBACK_PORT           (GPIOC)
 
 // Инициализация аппаратного измерения сигнала обратной связи на PC6 через TIM8.
 // Таймер включается в slave reset mode по входу TI1FP1. В этой схеме активный trigger сбрасывает CNT в 0
@@ -123,6 +118,8 @@ void setup() {
     __HAL_RCC_TIM3_CLK_ENABLE();
     __HAL_RCC_TIM4_CLK_ENABLE();
     __HAL_RCC_TIM8_CLK_ENABLE();
+    __HAL_RCC_USART2_CLK_ENABLE();
+    __HAL_RCC_DMA1_CLK_ENABLE();
     __HAL_RCC_GPIOA_CLK_ENABLE();
     __HAL_RCC_GPIOB_CLK_ENABLE();
     __HAL_RCC_GPIOC_CLK_ENABLE();
@@ -142,10 +139,11 @@ void setup() {
     // pinMode(DEBUG_PIN_3, OUTPUT);
     // pinMode(DEBUG_PIN_4, OUTPUT);
     
-    
-    display_init();
+    //
+    // Periph
     tension_init();
     spark_pwm_init();
+    telemetry_init();
 
     //
     // Setup X axis
@@ -198,12 +196,14 @@ void setup() {
 
 void start_axis_x() {
     HAL_TIM_PWM_Start(&g_x_htim, TIM_CHANNEL_4);
-    HAL_GPIO_WritePin(X_EN_PORT, X_EN_PIN, GPIO_PIN_RESET);
+    // HAL_GPIO_WritePin(X_EN_PORT, X_EN_PIN, GPIO_PIN_RESET);
+    g_is_axis_x_enabled = true;
 }
 
 void stop_axis_x() {
     HAL_TIM_PWM_Stop(&g_x_htim, TIM_CHANNEL_4);
-    HAL_GPIO_WritePin(X_EN_PORT, X_EN_PIN, GPIO_PIN_SET);
+    // HAL_GPIO_WritePin(X_EN_PORT, X_EN_PIN, GPIO_PIN_SET);
+    g_is_axis_x_enabled = false;
 }
 
 void enable_axis_x() {
@@ -214,6 +214,7 @@ void enable_axis_x() {
 void disable_axis_x() {
     HAL_TIM_PWM_Stop(&g_x_htim, TIM_CHANNEL_4);
     HAL_GPIO_WritePin(X_EN_PORT, X_EN_PIN, GPIO_PIN_SET);
+    g_is_axis_x_enabled = false;
 }
 
 
@@ -227,30 +228,91 @@ void update_axis_x_speed() {
     __HAL_TIM_SET_COMPARE(&g_x_htim, TIM_CHANNEL_4, g_axis_x_period_us / 2);
 }
 
+void system_clock_init() {
+    __HAL_RCC_PWR_CLK_ENABLE();
+    __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
+    
+    // Init HSE & PLL
+    RCC_OscInitTypeDef osc = {0};
+    osc.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+    osc.HSEState       = RCC_HSE_ON;
+    osc.PLL.PLLState   = RCC_PLL_ON;
+    osc.PLL.PLLSource  = RCC_PLLSOURCE_HSE;
+    osc.PLL.PLLM = 8;             // 8 MHz -> 1 MHz
+    osc.PLL.PLLN = 336;           // 1 MHz -> 336 MHz
+    osc.PLL.PLLP = RCC_PLLP_DIV2; // SYSCLK: 336 MHz -> 168 MHz
+    osc.PLL.PLLQ = 7;             // USB/SDIO: 336 MHz -> 48 MHz
+    if (HAL_RCC_OscConfig(&osc) != HAL_OK) {
+        while (1);
+    }
+
+    // Setup clock source as PLL
+    // For 3V3 on 168 MHz require 5 ticks for flash memory
+    RCC_ClkInitTypeDef clk = {0};
+    clk.ClockType      = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK |RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
+    clk.SYSCLKSource   = RCC_SYSCLKSOURCE_PLLCLK;
+    clk.AHBCLKDivider  = RCC_SYSCLK_DIV1; // HCLK = 168 MHz
+    clk.APB1CLKDivider = RCC_HCLK_DIV4;   // PCLK1 = 42 MHz
+    clk.APB2CLKDivider = RCC_HCLK_DIV2;   // PCLK2 = 84 MHz
+    if (HAL_RCC_ClockConfig(&clk, FLASH_LATENCY_5) != HAL_OK) {
+        while (1);
+    }
+
+    __HAL_RCC_SYSCFG_CLK_ENABLE();
+    __HAL_RCC_TIM1_CLK_ENABLE();
+    __HAL_RCC_TIM2_CLK_ENABLE();
+    __HAL_RCC_TIM3_CLK_ENABLE();
+    __HAL_RCC_TIM4_CLK_ENABLE();
+    __HAL_RCC_TIM8_CLK_ENABLE();
+    __HAL_RCC_USART2_CLK_ENABLE();
+    __HAL_RCC_DMA1_CLK_ENABLE();
+    __HAL_RCC_GPIOA_CLK_ENABLE();
+    __HAL_RCC_GPIOB_CLK_ENABLE();
+    __HAL_RCC_GPIOC_CLK_ENABLE();
+    __HAL_RCC_GPIOD_CLK_ENABLE();
+    __HAL_RCC_GPIOE_CLK_ENABLE();
+
+    // Setup MCO2 pin (PC9)
+    HAL_RCC_MCOConfig(RCC_MCO2, RCC_MCO2SOURCE_SYSCLK, RCC_MCODIV_5);
+    GPIO_InitTypeDef mco2 = {0};
+    mco2.Pin       = GPIO_PIN_9;
+    mco2.Mode      = GPIO_MODE_AF_PP;
+    mco2.Pull      = GPIO_NOPULL;
+    mco2.Speed     = GPIO_SPEED_FREQ_VERY_HIGH;
+    mco2.Alternate = GPIO_AF0_MCO;
+    HAL_GPIO_Init(GPIOC, &mco2);
+}
 
 
+// int main() {
+//     HAL_Init();
+//     system_clock_init();
 
-// void PWM_Handler(void) {
-//     uint32_t status = PWM->PWM_ISR1; 
-//     if (status & (1 << MOSFET_GATE_CTRL_PWM_CH)) {
-//         ++spark_period_counter;
+//     while (1) {
+//         loop();
 //     }
 // }
 
-void HardFault_Handler(void) {
-    while (true);
-}
-
 void loop() {
     //
-    // Keyboard & TFT
+    // Telemetry
     static uint32_t s_last_update_params_time_ms = 0;
     if (millis() - s_last_update_params_time_ms > 50) {
-        keyboard_process();
-        // spark_pwm_update();
-        update_axis_x_speed();
-        display_update();
         s_last_update_params_time_ms = millis();
+
+        tx_msg_t tx_msg;
+        tx_msg.arc_state = spark_is_enabled();
+        tx_msg.step_state = g_is_axis_x_enabled;;
+        tx_msg.freq_hz = spark_get_freq();
+        tx_msg.arc_counter = g_arc_counter;
+        tx_msg.tension_g = tension_get_tension_g();
+        tx_msg.feeder_us = tension_get_feeder_period_us();
+        tx_msg.brake_us = tension_get_brake_period_us();
+        tx_msg.t1 = spark_get_t1_us();
+        tx_msg.t0 = spark_get_t0_us();
+        telemetry_tx(&tx_msg);
+
+        keyboard_process();
     }
 
 
@@ -272,7 +334,7 @@ void loop() {
         if (current_cnt > 1000 || low_us < 2) { // current_cnt > 1000 us -- no pulse long time
             stop_axis_x();
             s_arc_last_time_ms = millis();
-            ++g_short_circuit_counter;
+            ++g_arc_counter;
         } else {
             if (millis() - s_arc_last_time_ms > 100) { // 100 ms
                 start_axis_x();

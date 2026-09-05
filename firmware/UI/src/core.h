@@ -7,7 +7,6 @@
 
 #define true  (1)
 #define false (0)
-
-#define SYSTEM_CLOCK_FREQUENCY      (48000000)
+#define BUILD_UINT16(msb, lsb)   (((uint16_t)(msb) << 8) | (uint8_t)(lsb))
 
 #endif // _CORE_H_

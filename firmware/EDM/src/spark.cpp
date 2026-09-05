@@ -1,3 +1,4 @@
+#include "core.h"
 #include "spark.h"
 
 #define MOSFET_GATE_CTRL_PIN        (GPIO_PIN_1)
@@ -74,18 +75,7 @@ void spark_pwm_update() {
 }
 
 void spark_pwm_process() {
-    // //
-    // // Short circuit control
-    // static uint32_t s_no_spark_counter = 0;
-    // if (g_spark_time_us < 5) {
-    //     ++s_no_spark_counter;
-    //     if (s_no_spark_counter > 100) {
-    //         digitalWrite(X_DIR, LOW);
-    //     }
-    // } else {
-    //     s_no_spark_counter = 0;
-    //     digitalWrite(X_DIR, HIGH);
-    // }
+    
 }
 
 

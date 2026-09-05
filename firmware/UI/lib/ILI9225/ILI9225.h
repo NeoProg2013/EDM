@@ -51,12 +51,85 @@ extern "C" {
 #define ILI9225_COLOR_SNOW              (0xFFDF) // 255, 250, 250
 #define ILI9225_COLOR_YELLOW            (0xFFE0) // 255, 255,   0
 
+typedef struct __attribute__((packed)) {
+    uint8_t width;
+    uint8_t height;
+    uint8_t first_char;
+    uint8_t char_count;
+    uint8_t bytes_per_row;
+    uint8_t spacing_x;
+    uint8_t glyph_size;
+} ili9225_font_t;
+
+extern const ili9225_font_t* const ili9225_font_8x13;
+
+/// **************************************************************************
+/// @brief  Initialize the ILI9225 display controller
+/// **************************************************************************
 void ili9225_init(void);
+
+/// **************************************************************************
+/// @brief  Clear the full screen to black
+/// **************************************************************************
 void ili9225_clear(void);
+
+/// **************************************************************************
+/// @brief  Draw one pixel on the display
+/// @param  [in] x: pixel X coordinate
+/// @param  [in] y: pixel Y coordinate
+/// @param  [in] color: RGB565 pixel color
+/// **************************************************************************
 void ili9225_draw_pixel(int x, int y, uint16_t color);
+
+/// **************************************************************************
+/// @brief  Fill a rectangular region with a solid color
+/// @param  [in] x1: left coordinate
+/// @param  [in] y1: top coordinate
+/// @param  [in] x2: right coordinate
+/// @param  [in] y2: bottom coordinate
+/// @param  [in] color: RGB565 fill color
+/// **************************************************************************
 void ili9225_fill_rectangle(int x1, int y1, int x2, int y2, uint16_t color);
+
+/// **************************************************************************
+/// @brief  Draw a string with the built-in font
+/// @param  [in] x: left coordinate of the first character
+/// @param  [in] y: top coordinate of the first character
+/// @param  [in] color: foreground RGB565 color
+/// @param  [in] bg_color: background RGB565 color
+/// @param  [in] str: null-terminated string to render
+/// @param  [in] min_len: minimum number of character cells to draw
+/// **************************************************************************
 void ili9225_draw_string(int x, int y, uint16_t color, uint16_t bg_color, const char* str, uint8_t min_len = 0);
+
+/// **************************************************************************
+/// @brief  Draw a string with the specified font
+/// @param  [in] x: left coordinate of the first character
+/// @param  [in] y: top coordinate of the first character
+/// @param  [in] color: foreground RGB565 color
+/// @param  [in] bg_color: background RGB565 color
+/// @param  [in] str: null-terminated string to render
+/// @param  [in] font: font header view with inline glyph data
+/// @param  [in] min_len: minimum number of character cells to draw
+/// **************************************************************************
+void ili9225_draw_string_with_font(int x, int y, uint16_t color, uint16_t bg_color, const char* str, const ili9225_font_t* font, uint8_t min_len = 0);
+
+/// **************************************************************************
+/// @brief  Draw a horizontal line as a filled rectangle
+/// @param  [in] x1: left coordinate
+/// @param  [in] y1: top coordinate
+/// @param  [in] w: line width in pixels
+/// @param  [in] color: RGB565 line color
+/// **************************************************************************
 void ili9225_draw_line(int x1, int y1, int w, uint16_t color);
+
+/// **************************************************************************
+/// @brief  Draw a bitmap with integer scaling
+/// @param  [in] x: left coordinate
+/// @param  [in] y: top coordinate
+/// @param  [in] scale: integer scale factor
+/// @param  [in] bmp: bitmap array with width and height in the first words
+/// **************************************************************************
 void ili9225_draw_bitmap(int x, int y, int scale, const unsigned int* bmp);
 
 #ifdef	__cplusplus

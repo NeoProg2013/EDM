@@ -92,28 +92,59 @@ Referenced but currently inactive concepts:
 ### `src/display.h`
 Role:
 - Exists, but content was not inspected during this pass
-- Likely intended interface for the disabled display module
+ - Likely intended interface for the disabled display module
 
 ## Libraries
 ### Local library: `lib/ILI9225`
 Files:
-- `C:\Users\NeoProg\Desktop\EDM\firmware\UI\lib\ILI9225\ILI9225.c`
+- `C:\Users\NeoProg\Desktop\EDM\firmware\UI\lib\ILI9225\ILI9225.cc`
 - `C:\Users\NeoProg\Desktop\EDM\firmware\UI\lib\ILI9225\ILI9225.h`
 
 Characteristics:
-- C driver for ILI9225-compatible TFT LCDs
-- Originally written for PIC, partially adapted to STM32 HAL
-- Uses `stm32f0xx_hal.h`
-- Hardcoded display geometry: `WIDTH=220`, `HEIGHT=176`, `LANDSCAPE=1`
-- Hardcoded control pins:
-  - `CSX` -> `GPIOC PIN 1`
-  - `RESX` -> `GPIOC PIN 0`
-  - `CMD` -> `GPIOB PIN 0`
+- Local ILI9225 driver implemented in C++-compatible source (`.cc`) with a C API exposed from the header
+- Uses `stm32f0xx_hal.h` and the application-owned `SPI1` handle via `extern SPI_HandleTypeDef hspi1;`
+- Current display geometry macros:
+  - `ILI9225_WIDTH = 176`
+  - `ILI9225_HEIGHT = 220`
+- Current orientation setting in driver source:
+  - `LANDSCAPE = 0`
+- Hardcoded control pins in current driver:
+  - `CS` -> `GPIOA PIN 6`
+  - `RST` -> `GPIOA PIN 9`
+  - `RS/DC` -> `GPIOB PIN 1`
 
-Important observation:
-- Header declares a global `SPI_HandleTypeDef hspi2;`
-- Main application initializes `SPI1`, not `SPI2`
-- This suggests the local C driver is not integrated with the current `main.cpp` as-is, or it is stale/incomplete.
+Current font/rendering state:
+- `ili9225_font_t` is now a packed font header view, not an owning runtime structure
+- `ili9225_font_t` fields are:
+  - `width`
+  - `height`
+  - `first_char`
+  - `char_count`
+  - `bytes_per_row`
+  - `spacing_x`
+  - `glyph_stride`
+- Built-in font storage is a single binary blob `g_font[]` with layout:
+  - font header bytes first
+  - followed by glyphs stored as `[glyph_width][bitmap rows...]`
+- `ili9225_font_8x13` is exposed as:
+  - `const ili9225_font_t* const ili9225_font_8x13`
+  - and points directly to the packed header at the start of `g_font`
+- Glyph data is addressed relative to the header using `sizeof(ili9225_font_t)`
+- The built-in font currently covers ASCII `0x20..0x7E`
+- Glyph bitmap rows are stored bottom-to-top to match the current character drawing logic
+- Rendering now supports per-glyph width and is compatible with future packed/variable-width fonts
+
+Public text API status:
+- `ili9225_draw_string(...)` remains as a compatibility wrapper using the built-in font
+- `ili9225_draw_string_with_font(...)` allows selecting a font explicitly
+
+Documentation/comment style status:
+- Function comments in `ILI9225.h` and `ILI9225.cc` were updated to a Doxygen-style block format using `///` lines
+- Example style:
+  - `/// **************************************************************************`
+  - `/// @brief  ...`
+  - `/// @param  [in] ...`
+  - `/// **************************************************************************`
 
 Capabilities in the driver:
 - Low-level command/data writes
@@ -194,16 +225,20 @@ Based on file names and commented UI strings, this appears to be a UI/diagnostic
    - `src/display.cpp` is entirely commented out
    - no active display initialization in `main.cpp`
 
-3. **SPI instance mismatch risk**
-   - app initializes `SPI1`
-   - local ILI9225 header exposes `hspi2`
-   - integration would fail unless unified
+3. **Two different display driver approaches coexist**
+   - local `lib/ILI9225`
+   - external `TFT 22 ILI9225`
+   - likely technical debt or unfinished migration
 
-4. **Project may contain stale build artifacts**
+4. **Display driver comments were modernized, but non-comment legacy style may still remain elsewhere**
+   - function headers in `lib/ILI9225` are now mostly unified
+   - inline comments and some historical wording/typos may still exist
+
+5. **Project may contain stale build artifacts**
    - `.pio/build/.../src/drivers/systimer.o` exists
    - corresponding source was not located in this scan
 
-5. **Hardcoded frequency macro**
+6. **Hardcoded frequency macro**
    - `SYSTEM_CLOCK_FREQUENCY` duplicates actual RCC setup
    - can drift if clock configuration changes later
 
@@ -213,14 +248,16 @@ Based on file names and commented UI strings, this appears to be a UI/diagnostic
 - `C:\Users\NeoProg\Desktop\EDM\firmware\UI\src\core.h`
 - `C:\Users\NeoProg\Desktop\EDM\firmware\UI\src\display.cpp`
 - `C:\Users\NeoProg\Desktop\EDM\firmware\UI\src\display.h`
-- `C:\Users\NeoProg\Desktop\EDM\firmware\UI\lib\ILI9225\ILI9225.c`
+- `C:\Users\NeoProg\Desktop\EDM\firmware\UI\lib\ILI9225\ILI9225.cc`
 - `C:\Users\NeoProg\Desktop\EDM\firmware\UI\lib\ILI9225\ILI9225.h`
 - `C:\Users\NeoProg\Desktop\EDM\firmware\UI\lib\stm32_f030f4_jlink\TFT 22 ILI9225\src\TFT_22_ILI9225.cpp`
 - `C:\Users\NeoProg\Desktop\EDM\firmware\UI\lib\stm32_f030f4_jlink\TFT 22 ILI9225\src\TFT_22_ILI9225.h`
 
 ## Recommended Next Steps
-1. Resolve which display driver is the intended one.
-2. Find or restore the actual `systimer` sources if they are expected to be part of the project.
-3. Verify SPI pin mapping and whether `SPI1` or `SPI2` should be used.
-4. If display support is needed, re-enable and adapt `src/display.cpp` to the chosen driver.
-5. Consider documenting pin assignments and module responsibilities in a `README.md` or extending this context file.
+1. Resolve which display driver is the intended long-term one:
+   - local `lib/ILI9225`
+   - or external `TFT 22 ILI9225`
+2. If future font expansion is planned, add additional packed font blobs in the same header+glyph layout.
+3. Re-enable and adapt `src/display.cpp` if display output is needed in the running firmware.
+4. Optionally finish normalizing inline comments and terminology in `lib/ILI9225`.
+5. Consider documenting pin assignments and module responsibilities in a `README.md` or extending this context file further.

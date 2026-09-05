@@ -85,14 +85,14 @@ void display_update() {
         ili9225_draw_line(0, 27, 176, ILI9225_COLOR_GRAY);
         
         int y = 40;
-        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, ILI9225_COLOR_BLACK, "  Freq (Hz): -----"); y += 15;
-        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, ILI9225_COLOR_BLACK, "        S/C: -----"); y += 15;
-        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, ILI9225_COLOR_BLACK, "Tension (g): -----"); y += 15;
-        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, ILI9225_COLOR_BLACK, "Feeder (us): -----"); y += 15;
-        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, ILI9225_COLOR_BLACK, " Brake (us): -----"); y += 15;
+        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, ILI9225_COLOR_BLACK, "  Freq (Hz):"); y += 15;
+        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, ILI9225_COLOR_BLACK, "        S/C:"); y += 15;
+        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, ILI9225_COLOR_BLACK, "Tension (g):"); y += 15;
+        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, ILI9225_COLOR_BLACK, "Feeder (us):"); y += 15;
+        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, ILI9225_COLOR_BLACK, " Brake (us):"); y += 15;
         y += 15;
-        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, ILI9225_COLOR_BLACK, "  High (us): -----"); y += 15;
-        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, ILI9225_COLOR_BLACK, "   Low (us): -----"); y += 15;
+        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, ILI9225_COLOR_BLACK, "  High (us):"); y += 15;
+        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, ILI9225_COLOR_BLACK, "   Low (us):"); y += 15;
 
         s_is_init = true;
     }

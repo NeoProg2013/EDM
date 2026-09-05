@@ -83,18 +83,18 @@ void display_update() {
     
     // Draw static text
     if (!s_is_init) {
-        ili9225_draw_string(5, 6, ILI9225_COLOR_RED, "DISABLED");
+        ili9225_draw_string(5, 10, ILI9225_COLOR_RED, "[DISABLED]", 10);
         ili9225_draw_line(0, 27, 176, ILI9225_COLOR_GRAY);
         
         int y = 40;
-        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "  Freq (Hz):"); y += 15;
-        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "        S/C:"); y += 15;
-        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "Tension (g):"); y += 15;
-        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "Feeder (us):"); y += 15;
-        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, " Brake (us):"); y += 15;
-        y += 15;
-        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "  High (us):"); y += 15;
-        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "   Low (us):"); y += 15;
+        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "  Freq (Hz):"); y += 13;
+        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "        S/C:"); y += 13;
+        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "Tension (g):"); y += 13;
+        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "Feeder (us):"); y += 13;
+        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, " Brake (us):"); y += 13;
+        y += 13;
+        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "  High (us):"); y += 13;
+        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "   Low (us):"); y += 13;
 
         s_is_init = true;
     }
@@ -105,9 +105,9 @@ void display_update() {
         bool v = !s_last_state;
         if (s_last_state != v) {
             if (v) {
-                ili9225_draw_string(5, 6, ILI9225_COLOR_GREEN, "ENABLED", 8);
+                ili9225_draw_string(5, 10, ILI9225_COLOR_GREEN, "[ENABLED]", 10);
             } else {
-                ili9225_draw_string(5, 6, ILI9225_COLOR_RED, "DISABLED", 8);
+                ili9225_draw_string(5, 10, ILI9225_COLOR_RED, "[DISABLED]", 10);
             }
             s_last_state = v;
         }
@@ -126,7 +126,7 @@ void display_update() {
         }
         return;
     }
-    y += 15;
+    y += 13;
 
     // Short circuit count
     if (s_call_counter == 3) {
@@ -138,7 +138,7 @@ void display_update() {
         }
         return;
     }
-    y += 15;
+    y += 13;
 
     // Tension (g)
     if (s_call_counter == 4) {
@@ -150,7 +150,7 @@ void display_update() {
         }
         return;
     }
-    y += 15;
+    y += 13;
 
     // Feeder freq
     if (s_call_counter == 5) {
@@ -162,7 +162,7 @@ void display_update() {
         }
         return;
     }
-    y += 15;
+    y += 13;
 
     // Brake freq
     if (s_call_counter == 6) {
@@ -174,8 +174,8 @@ void display_update() {
         }
         return;
     }
-    y += 15;
-    y += 15;
+    y += 13;
+    y += 13;
 
     // T1
     if (s_call_counter == 7) {
@@ -187,7 +187,7 @@ void display_update() {
         }
         return;
     }
-    y += 15;
+    y += 13;
 
     // T0
     if (s_call_counter == 8) {

@@ -203,11 +203,11 @@ void tension_process() {
     if (s_tension_acc_n >= 20) {
         if (g_is_enabled) {
             int32_t v = (s_tension_acc / s_tension_acc_n);
-            int32_t d = 1100000 - v; // 1100000 bins = ~650g
-            int32_t offset_us = d / 255;
+            int32_t d = 1200000 - v; // 1200000 bins = ~700g
+            int32_t offset_us = d / 255; // Just P regulator
             if (abs(d) > 100) {
-                g_brake_period_us  = constrain(g_brake_period_base_us + offset_us, 9000, 12000);
-                g_feeder_period_us = constrain(g_feeder_period_us - offset_us, 7000, 10000);
+                g_brake_period_us = constrain(g_brake_period_base_us + offset_us, 9000, 13000);
+                // g_feeder_period_us = constrain(g_feeder_period_us - offset_us, 7000, 10000);
             }
             update_head_speed();
         }

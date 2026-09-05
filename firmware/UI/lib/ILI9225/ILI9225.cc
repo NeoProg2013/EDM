@@ -654,7 +654,7 @@ void ili9225_set_bg_color(uint16_t bg_color) {
 /// @param  [in] color: RGB565 line color
 /// **************************************************************************
 void ili9225_draw_line(int x1, int y1, int w, uint16_t color) {
-    ili9225_fill_rectangle(x1, y1, x1 + w, y1 + 1, color);
+    ili9225_fill_rectangle(x1, y1, x1 + w, y1, color);
 }
 
 /// **************************************************************************

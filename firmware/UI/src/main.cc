@@ -1,10 +1,13 @@
 #include "core.h"
 #include "display.h"
+#include "telemetry.h"
 
 
 void system_clock_init() {
     __HAL_RCC_SYSCFG_CLK_ENABLE();
     __HAL_RCC_SPI1_CLK_ENABLE();
+    __HAL_RCC_DMA1_CLK_ENABLE();
+    __HAL_RCC_USART1_CLK_ENABLE();
     __HAL_RCC_GPIOA_CLK_ENABLE();
     __HAL_RCC_GPIOB_CLK_ENABLE();
     __HAL_RCC_GPIOC_CLK_ENABLE();
@@ -40,12 +43,11 @@ int main() {
     system_clock_init();
 
     display_init();
-    
-
-    
+    telemetry_init();
 
     while (true) {
         display_update();
+        telemetry_process();
     }
 
     return 0;

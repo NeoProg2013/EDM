@@ -64,20 +64,14 @@ TIM_HandleTypeDef g_htim8 = {0};
 // Инициализация аппаратного измерения сигнала обратной связи на PC6 через TIM8.
 // Таймер включается в slave reset mode по входу TI1FP1. В этой схеме активный trigger сбрасывает CNT в 0
 //
-// 4. Каналы input capture настраиваются в PWM-input-подобную конфигурацию:
-//    - CH1: прямой вход TI1, захват по FALLING
-//    - CH2: косвенный вход от того же TI1, захват по RISING
+// Каналы настраиваются в PWM input capture конфигурацию:
+//    - CH1: захват по FALLING, reset CNT
+//    - CH2: захват по RISING
 //
-//    В результате при чтении регистров захвата в основном цикле получается:
-//    - TIM_CHANNEL_1 -> длительность высокого уровня сигнала (high time, мкс)
+// В результате при чтении регистров захвата в основном цикле получается:
+//    - TIM_CHANNEL_1 -> длительность высокого уровня сигнала (мкс)
 //    - TIM_CHANNEL_2 -> полный период сигнала между соседними фронтами (мкс)
 //
-// 5. Затем оба канала запускаются через HAL_TIM_IC_Start().
-//
-// В текущей логике проекта этот feedback используется для контроля состояния
-// процесса: если счётчик TIM8 слишком долго не сбрасывался (current_cnt > 10000),
-// код трактует это как отсутствие ожидаемых импульсов / признак короткого
-// замыкания и останавливает ось X.
 void init_feedback() {
     GPIO_InitTypeDef x_step_gpio = {0};
     x_step_gpio.Pin       = FEEDBACK_PIN;
@@ -135,7 +129,6 @@ void setup() {
     __HAL_RCC_GPIOD_CLK_ENABLE();
     __HAL_RCC_GPIOE_CLK_ENABLE();
 
-    
     // Keyboard
     pinMode(KBRD_T1_INC_BUTTON, INPUT_PULLUP); // T1 button +
     pinMode(KBRD_T1_DEC_BUTTON, INPUT_PULLUP); // T1 button -
@@ -229,7 +222,7 @@ void update_axis_x_speed() {
     if (g_axis_x_period_us < 1000)  g_axis_x_period_us = 1000;
     if (g_axis_x_period_us > 30000) g_axis_x_period_us = 30000;
 
-    // Update feeder freq
+    // Update X axis freq
     __HAL_TIM_SET_AUTORELOAD(&g_x_htim, g_axis_x_period_us);
     __HAL_TIM_SET_COMPARE(&g_x_htim, TIM_CHANNEL_4, g_axis_x_period_us / 2);
 }
@@ -263,23 +256,25 @@ void loop() {
 
     //
     // Short circuit control
-    static uint32_t s_reverse_dir_start_time_ms = 0;
+    static uint32_t s_arc_last_time_ms = 0;
     if (spark_is_enabled()) {
         uint32_t current_cnt = __HAL_TIM_GET_COUNTER(&g_htim8);
-        volatile uint32_t low_us = HAL_TIM_ReadCapturedValue(&g_htim8, TIM_CHANNEL_2);
+        uint32_t low_us = HAL_TIM_ReadCapturedValue(&g_htim8, TIM_CHANNEL_2);
 
         // Алгоритм работы:
         // - При коротком замыкании через проволоку длительность импульса составляет 3us
-        // - Условие "current_cnt > 10000" защита от КЗ, но такого быть не должно
-        // - Длительность импульса холостого хода - 12 us
-        // - При обычной работе генератора во время реза, длительность 1-3 us.
-        // Мы ждем пока станок полностью прорежет текущий отрезок и только потом делаем шаг
+        // - Условие "current_cnt > 10000" защита от жесткого КЗ, но такого быть не должно,
+        //   т.к. проволока имеет сопротивление и напряжение не упадет ниже порога срабатывания оптопары
+        // - Длительность импульса холостого хода - 3-12 us, видимо это связано с закрытием транзистора оптопары
+        // - При обычной работе генератора во время реза, длительность 1-2 us.
+        // Мы ждем пока станок полностью прорежет текущий отрезок и только потом делаем следующий шаг
+        // В качестве критерия используется отсутствие искры, т.е. длительность HIGH >= 3 более 100мс
         if (current_cnt > 1000 || low_us < 2) { // current_cnt > 1000 us -- no pulse long time
             stop_axis_x();
-            s_reverse_dir_start_time_ms = millis();
+            s_arc_last_time_ms = millis();
             ++g_short_circuit_counter;
         } else {
-            if (millis() - s_reverse_dir_start_time_ms > 100) { // 100 ms
+            if (millis() - s_arc_last_time_ms > 100) { // 100 ms
                 start_axis_x();
             }
         }

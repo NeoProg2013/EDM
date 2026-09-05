@@ -62,6 +62,7 @@ typedef struct __attribute__((packed)) {
 } ili9225_font_t;
 
 extern const ili9225_font_t* const ili9225_font_8x13;
+extern const ili9225_font_t* const ili9225_font_terminal6x8;
 
 /// **************************************************************************
 /// @brief  Initialize the ILI9225 display controller

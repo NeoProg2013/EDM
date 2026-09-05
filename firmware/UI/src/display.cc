@@ -68,6 +68,7 @@ void display_init() {
 
     ili9225_init();
     ili9225_clear();
+    ili9225_set_font(ili9225_font_terminal6x8);
     ili9225_set_bg_color(ILI9225_COLOR_BLACK);
 
     display_update();

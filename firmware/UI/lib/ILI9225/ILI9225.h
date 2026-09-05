@@ -92,27 +92,26 @@ void ili9225_draw_pixel(int x, int y, uint16_t color);
 void ili9225_fill_rectangle(int x1, int y1, int x2, int y2, uint16_t color);
 
 /// **************************************************************************
-/// @brief  Draw a string with the built-in font
-/// @param  [in] x: left coordinate of the first character
-/// @param  [in] y: top coordinate of the first character
-/// @param  [in] color: foreground RGB565 color
-/// @param  [in] bg_color: background RGB565 color
-/// @param  [in] str: null-terminated string to render
-/// @param  [in] min_len: minimum number of character cells to draw
-/// **************************************************************************
-void ili9225_draw_string(int x, int y, uint16_t color, uint16_t bg_color, const char* str, uint8_t min_len = 0);
-
-/// **************************************************************************
 /// @brief  Draw a string with the specified font
 /// @param  [in] x: left coordinate of the first character
 /// @param  [in] y: top coordinate of the first character
-/// @param  [in] color: foreground RGB565 color
-/// @param  [in] bg_color: background RGB565 color
 /// @param  [in] str: null-terminated string to render
 /// @param  [in] font: font header view with inline glyph data
 /// @param  [in] min_len: minimum number of character cells to draw
 /// **************************************************************************
-void ili9225_draw_string_with_font(int x, int y, uint16_t color, uint16_t bg_color, const char* str, const ili9225_font_t* font, uint8_t min_len = 0);
+void ili9225_draw_string(int x, int y, uint16_t color, const char* str, uint8_t min_len = 0);
+
+/// **************************************************************************
+/// @brief  Set current font for all strings
+/// @param  [in] font: font header view with inline glyph data
+/// **************************************************************************
+void ili9225_set_font(const ili9225_font_t* font);
+
+/// **************************************************************************
+/// @brief  Set backgound color for all strings
+/// @param  [in] bg_color: background RGB565 color
+/// **************************************************************************
+void ili9225_set_bg_color(uint16_t bg_color);
 
 /// **************************************************************************
 /// @brief  Draw a horizontal line as a filled rectangle

@@ -189,6 +189,9 @@ static const uint8_t g_font[] = {
 
 const ili9225_font_t* const ili9225_font_8x13 = reinterpret_cast<const ili9225_font_t*>(g_font);
 
+// Current state
+uint16_t g_cur_bg_color = ILI9225_COLOR_BLACK;
+const ili9225_font_t* g_cur_font = ili9225_font_8x13;
 
 
 static const glyph_t* lcd_get_glyph(const ili9225_font_t* font, uint8_t glyph_index) {
@@ -490,59 +493,56 @@ void ili9225_fill_rectangle(int x1, int y1, int x2, int y2, uint16_t color) {
 }
 
 /// **************************************************************************
-/// @brief  Draw a string with the built-in font
-/// @param  [in] x: left coordinate of the first character
-/// @param  [in] y: top coordinate of the first character
-/// @param  [in] color: foreground RGB565 color
-/// @param  [in] bg_color: background RGB565 color
-/// @param  [in] str: null-terminated string to render
-/// @param  [in] min_len: minimum number of character cells to draw
-/// **************************************************************************
-void ili9225_draw_string(int x, int y, uint16_t color, uint16_t bg_color, const char* str, uint8_t min_len) {
-    ili9225_draw_string_with_font(x, y, color, bg_color, str, ili9225_font_8x13, min_len);
-}
-
-/// **************************************************************************
 /// @brief  Draw a string with the specified font
 /// @param  [in] x: left coordinate of the first character
 /// @param  [in] y: top coordinate of the first character
 /// @param  [in] color: foreground RGB565 color
-/// @param  [in] bg_color: background RGB565 color
 /// @param  [in] str: null-terminated string to render
-/// @param  [in] font: font header view with inline glyph data
 /// @param  [in] min_len: minimum number of character cells to draw
 /// **************************************************************************
-void ili9225_draw_string_with_font(int x, int y, uint16_t color, uint16_t bg_color, const char* str, const ili9225_font_t* font, uint8_t min_len) {
-    if (!str || !font) {
-        return;
-    }
-
+void ili9225_draw_string(int x, int y, uint16_t color, const char* str, uint8_t min_len) {
     int current_x = x;
     uint8_t str_size = strlen(str);
     
     // Draw glyphs
     for (int i = 0; i < str_size; i++) {
         uint8_t char_code = static_cast<uint8_t>(str[i]);
-        if (char_code < font->first_char || char_code >= (font->first_char + font->char_count)) {
+        if (char_code < g_cur_font->first_char || char_code >= (g_cur_font->first_char + g_cur_font->char_count)) {
             return;
         }
 
-        const glyph_t* glyph = lcd_get_glyph(font, char_code - font->first_char);
-        lcd_draw_char(current_x, y, glyph, font, color, bg_color);
-        current_x += glyph->width + font->spacing_x; 
+        const glyph_t* glyph = lcd_get_glyph(g_cur_font, char_code - g_cur_font->first_char);
+        lcd_draw_char(current_x, y, glyph, g_cur_font, color, g_cur_bg_color);
+        current_x += glyph->width + g_cur_font->spacing_x; 
     }
 
     // Fill tail (spaces)
     for (int i = str_size; i < min_len; i++) {
         uint8_t char_code = ' ';
-        if (char_code < font->first_char || char_code >= (font->first_char + font->char_count)) {
+        if (char_code < g_cur_font->first_char || char_code >= (g_cur_font->first_char + g_cur_font->char_count)) {
             return;
         }
 
-        const glyph_t* glyph = lcd_get_glyph(font, char_code - font->first_char);
-        lcd_draw_char(current_x, y, glyph, font, color, bg_color);
-        current_x += glyph->width + font->spacing_x; 
+        const glyph_t* glyph = lcd_get_glyph(g_cur_font, char_code - g_cur_font->first_char);
+        lcd_draw_char(current_x, y, glyph, g_cur_font, color, g_cur_bg_color);
+        current_x += glyph->width + g_cur_font->spacing_x; 
     }
+}
+
+/// **************************************************************************
+/// @brief  Set current font for all strings
+/// @param  [in] font: font header view with inline glyph data
+/// **************************************************************************
+void ili9225_set_font(const ili9225_font_t* font) {
+    g_cur_font = font;
+}
+
+/// **************************************************************************
+/// @brief  Set backgound color for all strings
+/// @param  [in] bg_color: background RGB565 color
+/// **************************************************************************
+void ili9225_set_bg_color(uint16_t bg_color) {
+    g_cur_bg_color = bg_color;
 }
 
 /// **************************************************************************

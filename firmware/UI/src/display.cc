@@ -68,6 +68,7 @@ void display_init() {
 
     ili9225_init();
     ili9225_clear();
+    ili9225_set_bg_color(ILI9225_COLOR_BLACK);
 
     display_update();
 }
@@ -81,18 +82,18 @@ void display_update() {
     
     // Draw static text
     if (!s_is_init) {
-        ili9225_draw_string(5, 6, ILI9225_COLOR_RED, ILI9225_COLOR_BLACK, "DISABLED");
+        ili9225_draw_string(5, 6, ILI9225_COLOR_RED, "DISABLED");
         ili9225_draw_line(0, 27, 176, ILI9225_COLOR_GRAY);
         
         int y = 40;
-        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, ILI9225_COLOR_BLACK, "  Freq (Hz):"); y += 15;
-        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, ILI9225_COLOR_BLACK, "        S/C:"); y += 15;
-        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, ILI9225_COLOR_BLACK, "Tension (g):"); y += 15;
-        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, ILI9225_COLOR_BLACK, "Feeder (us):"); y += 15;
-        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, ILI9225_COLOR_BLACK, " Brake (us):"); y += 15;
+        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "  Freq (Hz):"); y += 15;
+        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "        S/C:"); y += 15;
+        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "Tension (g):"); y += 15;
+        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "Feeder (us):"); y += 15;
+        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, " Brake (us):"); y += 15;
         y += 15;
-        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, ILI9225_COLOR_BLACK, "  High (us):"); y += 15;
-        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, ILI9225_COLOR_BLACK, "   Low (us):"); y += 15;
+        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "  High (us):"); y += 15;
+        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "   Low (us):"); y += 15;
 
         s_is_init = true;
     }
@@ -103,9 +104,9 @@ void display_update() {
         bool v = !s_last_state;
         if (s_last_state != v) {
             if (v) {
-                ili9225_draw_string(5, 6, ILI9225_COLOR_GREEN, ILI9225_COLOR_BLACK, "ENABLED", 8);
+                ili9225_draw_string(5, 6, ILI9225_COLOR_GREEN, "ENABLED", 8);
             } else {
-                ili9225_draw_string(5, 6, ILI9225_COLOR_RED, ILI9225_COLOR_BLACK, "DISABLED", 8);
+                ili9225_draw_string(5, 6, ILI9225_COLOR_RED, "DISABLED", 8);
             }
             s_last_state = v;
         }
@@ -119,7 +120,7 @@ void display_update() {
         static uint32_t s_last_freq = -1;
         uint32_t v = rand() % 100000;
         if (s_last_freq != v) {
-            ili9225_draw_string(120, y, ILI9225_COLOR_YELLOW, ILI9225_COLOR_BLACK, itoa(v, itoa_buffer, 10), 5);
+            ili9225_draw_string(120, y, ILI9225_COLOR_YELLOW, itoa(v, itoa_buffer, 10), 5);
             s_last_freq = v;
         }
         return;
@@ -131,7 +132,7 @@ void display_update() {
         static uint32_t s_last_short_circuit_counter = -1;
         uint32_t v = rand() % 100000;
         if (s_last_short_circuit_counter != v) {
-            ili9225_draw_string(120, y, ILI9225_COLOR_YELLOW, ILI9225_COLOR_BLACK, itoa(v, itoa_buffer, 10), 5);
+            ili9225_draw_string(120, y, ILI9225_COLOR_YELLOW, itoa(v, itoa_buffer, 10), 5);
             s_last_short_circuit_counter = v;
         }
         return;
@@ -143,7 +144,7 @@ void display_update() {
         static int32_t s_last_tension_g = -1;
         int32_t v = rand() % 100000;
         if (s_last_tension_g != v) {
-            ili9225_draw_string(120, y, ILI9225_COLOR_YELLOW, ILI9225_COLOR_BLACK, itoa(v, itoa_buffer, 10), 5);
+            ili9225_draw_string(120, y, ILI9225_COLOR_YELLOW, itoa(v, itoa_buffer, 10), 5);
             s_last_tension_g = v;
         }
         return;
@@ -155,7 +156,7 @@ void display_update() {
         static int32_t s_last_feeder_period_us = -1;
         int32_t v = rand() % 100000;
         if (s_last_feeder_period_us != v) {
-            ili9225_draw_string(120, y, ILI9225_COLOR_YELLOW, ILI9225_COLOR_BLACK, itoa(v, itoa_buffer, 10), 5);
+            ili9225_draw_string(120, y, ILI9225_COLOR_YELLOW, itoa(v, itoa_buffer, 10), 5);
             s_last_feeder_period_us = v;
         }
         return;
@@ -167,7 +168,7 @@ void display_update() {
         static int32_t s_last_brake_period_us = -1;
         int32_t v = rand() % 100000;
         if (s_last_brake_period_us != v) {
-            ili9225_draw_string(120, y, ILI9225_COLOR_YELLOW, ILI9225_COLOR_BLACK, itoa(v, itoa_buffer, 10), 5);
+            ili9225_draw_string(120, y, ILI9225_COLOR_YELLOW, itoa(v, itoa_buffer, 10), 5);
             s_last_brake_period_us = v;
         }
         return;
@@ -180,7 +181,7 @@ void display_update() {
         static int32_t s_last_t1_period_us = -1;
         int32_t v = rand() % 100000;
         if (s_last_t1_period_us != v) {
-            ili9225_draw_string(120, y, ILI9225_COLOR_YELLOW, ILI9225_COLOR_BLACK, itoa(v, itoa_buffer, 10), 5);
+            ili9225_draw_string(120, y, ILI9225_COLOR_YELLOW, itoa(v, itoa_buffer, 10), 5);
             s_last_t1_period_us = v;
         }
         return;
@@ -192,7 +193,7 @@ void display_update() {
         static int32_t s_last_t0_period_us = -1;
         int32_t v = rand() % 100000;
         if (s_last_t0_period_us != v) {
-            ili9225_draw_string(120, y, ILI9225_COLOR_YELLOW, ILI9225_COLOR_BLACK, itoa(v, itoa_buffer, 10), 5);
+            ili9225_draw_string(120, y, ILI9225_COLOR_YELLOW, itoa(v, itoa_buffer, 10), 5);
             s_last_t0_period_us = v;
         }
         return;

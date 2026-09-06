@@ -135,9 +135,8 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef* huart) {
 
             g_rx_bytes_count = 0;
             ++g_rx_counter;
-            return;
+            break;
         }
-
     } while (false);
 
     HAL_UART_Receive_IT(&usart1, &g_rx_byte, 1);

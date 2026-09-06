@@ -21,7 +21,7 @@ static rx_msg_t g_rx_msg = {0};
 
 
 
-static void usart1_init() {
+static void usart2_init() {
     // Init USART
     usart2.Instance          = USART2;
     usart2.Init.BaudRate     = 9600;
@@ -50,15 +50,15 @@ static void usart1_init() {
 
     // Setup USART IRQ 
     HAL_UART_Receive_IT(&usart2, &g_rx_byte, 1);
-    HAL_NVIC_SetPriority(USART1_IRQn, 0, 0);
-    HAL_NVIC_EnableIRQ(USART1_IRQn);
+    HAL_NVIC_SetPriority(USART2_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(USART2_IRQn);
 
     // Setup TX DMA IRQ
     HAL_NVIC_SetPriority(DMA1_Stream6_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(DMA1_Stream6_IRQn);
 }
 
-static void usart1_gpio_init() {
+static void usart2_gpio_init() {
     // PA2 -> TX
     GPIO_InitTypeDef tx = {0};
     tx.Pin       = GPIO_PIN_2;
@@ -78,83 +78,83 @@ static void usart1_gpio_init() {
     HAL_GPIO_Init(GPIOA, &rx);
 }
 
-// void HAL_UART_TxCpltCallback(UART_HandleTypeDef* usart) {
-//     if (usart->Instance != USART2) {
-//         return;
-//     }
-//     g_tx_ready = true;
-// }
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef* usart) {
+    if (usart->Instance != USART2) {
+        return;
+    }
+    g_tx_ready = true;
+}
 
-// void HAL_UART_RxCpltCallback(UART_HandleTypeDef* usart) {
-//     if (usart->Instance != USART2) {
-//         return;
-//     }
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef* usart) {
+    if (usart->Instance != USART2) {
+        return;
+    }
 
-//     do {
-//         if (g_is_sync_lost) {
-//             // Wait end of frame
-//             if (g_rx_byte != STOP_MARKER) {
-//                 break;
-//             }
+    do {
+        if (g_is_sync_lost) {
+            // Wait end of frame
+            if (g_rx_byte != STOP_MARKER) {
+                break;
+            }
             
-//             // Sync! Next byte should be 0xAA
-//             g_rx_bytes_count = 0;
-//             g_is_sync_lost = false;
-//             break;
-//         }
+            // Sync! Next byte should be 0xAA
+            g_rx_bytes_count = 0;
+            g_is_sync_lost = false;
+            break;
+        }
 
-//         // Check first byte of incoming frame
-//         if (g_rx_bytes_count == 0 && g_rx_byte != START_MARKER) {
-//             g_is_sync_lost = true; // Desync. First frame byte not 
-//             ++g_desync_counter;
-//             break;
-//         }
+        // Check first byte of incoming frame
+        if (g_rx_bytes_count == 0 && g_rx_byte != START_MARKER) {
+            g_is_sync_lost = true; // Desync. First frame byte not 
+            ++g_desync_counter;
+            break;
+        }
 
-//         // Save incoming byte to buffer
-//         g_rx_buffer[g_rx_bytes_count] = g_rx_byte;
-//         ++g_rx_bytes_count;
+        // Save incoming byte to buffer
+        g_rx_buffer[g_rx_bytes_count] = g_rx_byte;
+        ++g_rx_bytes_count;
 
-//         // Check incoming frame
-//         if (g_rx_bytes_count == sizeof(g_rx_buffer)) {
-//             if (g_rx_buffer[0] != START_MARKER || g_rx_buffer[g_rx_bytes_count - 1] != STOP_MARKER) {
-//                 g_is_sync_lost = true;
-//                 ++g_desync_counter;
-//                 break;
-//             }
+        // Check incoming frame
+        if (g_rx_bytes_count == sizeof(g_rx_buffer)) {
+            if (g_rx_buffer[0] != START_MARKER || g_rx_buffer[g_rx_bytes_count - 1] != STOP_MARKER) {
+                g_is_sync_lost = true;
+                ++g_desync_counter;
+                break;
+            }
 
-//             // Frame received
-//             g_rx_msg.cmd = g_rx_buffer[1];
+            // Frame received
+            g_rx_msg.cmd = g_rx_buffer[1];
 
-//             ++g_rx_counter;
-//             g_rx_bytes_count = 0;
-//             return;
-//         }
+            ++g_rx_counter;
+            g_rx_bytes_count = 0;
+            return;
+        }
 
-//     } while (false);
+    } while (false);
 
-//     HAL_UART_Receive_IT(&usart2, &g_rx_byte, 1);
-// }
+    HAL_UART_Receive_IT(&usart2, &g_rx_byte, 1);
+}
 
-// void HAL_UART_ErrorCallback(UART_HandleTypeDef* usart) {
-//     if (usart->Instance != USART2) {
-//         return;
-//     }
+void HAL_UART_ErrorCallback(UART_HandleTypeDef* usart) {
+    if (usart->Instance != USART2) {
+        return;
+    }
 
-//     // Clear all errors
-//     __HAL_UART_CLEAR_FLAG(&usart2, HAL_UART_ERROR_ORE | HAL_UART_ERROR_FE | HAL_UART_ERROR_NE | HAL_UART_ERROR_PE);
+    // Clear all errors
+    __HAL_UART_CLEAR_FLAG(&usart2, HAL_UART_ERROR_ORE | HAL_UART_ERROR_FE | HAL_UART_ERROR_NE | HAL_UART_ERROR_PE);
 
-//     // Restart receiver
-//     g_rx_bytes_count = 0;
-//     HAL_UART_Receive_IT(&usart2, &g_rx_byte, 1);
-//     g_is_sync_lost = true;
-//     ++g_desync_counter;
-// }
+    // Restart receiver
+    g_rx_bytes_count = 0;
+    HAL_UART_Receive_IT(&usart2, &g_rx_byte, 1);
+    g_is_sync_lost = true;
+    ++g_desync_counter;
+}
 
 
 
 void telemetry_init() {
-    usart1_gpio_init();
-    usart1_init();
+    usart2_gpio_init();
+    usart2_init();
 
     // Start receiver
     HAL_UART_Receive_IT(&usart2, &g_rx_byte, 1);
@@ -183,7 +183,11 @@ void telemetry_tx(tx_msg_t* msg) {
     g_tx_buffer[15] = msg->t0 >> 8;
     g_tx_buffer[16] = msg->t0 & 0xFF;
     g_tx_buffer[17] = STOP_MARKER;
-    HAL_UART_Transmit_DMA(&usart2, g_tx_buffer, sizeof(g_tx_buffer));
+    if (HAL_UART_Transmit_DMA(&usart2, g_tx_buffer, sizeof(g_tx_buffer)) != HAL_OK) {
+        return;
+    }
+
+    g_tx_ready = false;
     ++g_tx_counter;
 }
 

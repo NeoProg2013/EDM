@@ -1,3 +1,4 @@
+#include "core.h"
 #include "tension.h"
 #include "HX711.h"
 
@@ -23,17 +24,18 @@
 #define TENSION_SCALE               (1700) // 1700 bins = 1g
 
 
-static HX711 g_tension_sensor;
+static hx711_t g_tension_sensor;
 
 static TIM_HandleTypeDef g_head_feeder_htim = {0};
 static TIM_HandleTypeDef g_head_brake_htim  = {0};
 
-static bool    g_is_enabled       = false;
-static int32_t g_feeder_period_us = 1000000UL / 100;
-static int32_t g_brake_period_us  = 1000000UL / 90;
-static int32_t g_tension_bins     = 0;
-
+static int32_t g_feeder_period_us = 1'000'000UL / 100;
+static int32_t g_brake_period_us  = 1'000'000UL / 90;
 static const int32_t g_brake_period_base_us = 1000000UL / 100;
+
+static bool     g_is_enabled       = false;
+static int32_t  g_tension_bins     = 0;
+
 
 static void update_head_speed();
 
@@ -116,7 +118,7 @@ void tension_init() {
     HAL_TIM_PWM_ConfigChannel(&g_head_brake_htim, &brake_pwm, TIM_CHANNEL_4);
 
     //
-    // Setup head tension sensor
+    // Setup head tension sensor (HX711)
 
     // VCC: PB11
     GPIO_InitTypeDef gpio = {0};
@@ -135,23 +137,7 @@ void tension_init() {
     HAL_GPIO_Init(HEAD_HX711_GND_PORT, &gpio);
     HAL_GPIO_WritePin(HEAD_HX711_GND_PORT, HEAD_HX711_GND_PIN, GPIO_PIN_RESET);
 
-    // DOUT: PB13
-    gpio.Pin   = HEAD_HX711_DOUT_PIN;
-    gpio.Mode  = GPIO_MODE_INPUT;
-    gpio.Pull  = GPIO_NOPULL;
-    gpio.Speed = GPIO_SPEED_FREQ_HIGH;
-    HAL_GPIO_Init(HEAD_HX711_DOUT_PORT, &gpio);
-
-    // SCK: PB14
-    gpio.Pin   = HEAD_HX711_SCK_PIN;
-    gpio.Mode  = GPIO_MODE_OUTPUT_PP;
-    gpio.Pull  = GPIO_NOPULL;
-    gpio.Speed = GPIO_SPEED_FREQ_HIGH;
-    HAL_GPIO_Init(HEAD_HX711_SCK_PORT, &gpio);
-    HAL_GPIO_WritePin(HEAD_HX711_SCK_PORT, HEAD_HX711_SCK_PIN, GPIO_PIN_RESET);
-
-    g_tension_sensor.begin(PB13, PB14);
-    g_tension_sensor.set_scale(1);
+    g_tension_sensor.begin(HEAD_HX711_DOUT_PORT, HEAD_HX711_DOUT_PIN, HEAD_HX711_SCK_PORT, HEAD_HX711_SCK_PIN);
     g_tension_sensor.set_offset(175000);
     // 500g = 850 000
 }
@@ -221,10 +207,9 @@ void tension_process() {
 
 
 
-int32_t tension_get_feeder_period_us() { return g_feeder_period_us; }
-int32_t tension_get_brake_period_us()  { return g_brake_period_us;  }
-int32_t tension_get_tension_bins()     { return g_tension_bins;     }
-int32_t tension_get_tension_g()        { return abs(g_tension_bins) / TENSION_SCALE; }
+uint16_t tension_get_feeder_period_us() { return constrain(g_feeder_period_us, 0, UINT16_MAX); }
+uint16_t tension_get_brake_period_us()  { return constrain(g_brake_period_us, 0, UINT16_MAX);  }
+uint16_t tension_get_tension_g()        { return abs(g_tension_bins) / TENSION_SCALE; }
 
 
 

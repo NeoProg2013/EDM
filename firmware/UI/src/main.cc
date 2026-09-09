@@ -1,9 +1,10 @@
 #include "core.h"
 #include "display.h"
 #include "telemetry.h"
+#include "ui.h"
 
 
-void system_clock_init() {
+static void system_clock_init() {
     // Init HSI -> PLL
     RCC_OscInitTypeDef osc = {0};
     osc.OscillatorType      = RCC_OSCILLATORTYPE_HSI;
@@ -31,12 +32,12 @@ void system_clock_init() {
     __HAL_RCC_SPI1_CLK_ENABLE();
     __HAL_RCC_DMA1_CLK_ENABLE();
     __HAL_RCC_USART1_CLK_ENABLE();
+    __HAL_RCC_I2C1_CLK_ENABLE();
     __HAL_RCC_GPIOA_CLK_ENABLE();
     __HAL_RCC_GPIOB_CLK_ENABLE();
     __HAL_RCC_GPIOC_CLK_ENABLE();
     __HAL_RCC_GPIOD_CLK_ENABLE();
 }
-
 
 int main() {
     HAL_Init();
@@ -44,9 +45,11 @@ int main() {
 
     display_init();
     telemetry_init();
+    ui_init();
 
     while (true) {
-        display_update();
+        display_process();
+        ui_process();
     }
 
     return 0;

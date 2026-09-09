@@ -2,8 +2,12 @@
 #include "display.h"
 #include "ILI9225.h"
 #include "telemetry.h"
+#include "ui.h"
 
 SPI_HandleTypeDef hspi1 = {0}; // For ILI9225
+
+#define MAIN_MENU_ITEM_EDM_STATUS        (0)
+#define MAIN_MENU_ITEM_MOVEMENT          (1)
 
 
 
@@ -56,11 +60,208 @@ static void init_ili9225_gpio() {
     HAL_GPIO_Init(GPIOB, &gpio);
 
     // PA9 - RST
-    gpio.Pin       = GPIO_PIN_9;
+    gpio.Pin       = GPIO_PIN_1;
     gpio.Mode      = GPIO_MODE_OUTPUT_PP;
     gpio.Pull      = GPIO_NOPULL;
     gpio.Speed     = GPIO_SPEED_FREQ_HIGH;
     HAL_GPIO_Init(GPIOA, &gpio);
+}
+
+static void draw_footer() {
+    if (!telemetry_get_connection_state()) {
+        ili9225_draw_string(5, 210, ILI9225_COLOR_RED, "TX/RX/DS:");
+    } else {
+        if (telemetry_get_sync_state()) {
+            ili9225_draw_string(5, 210, ILI9225_COLOR_YELLOW, "TX/RX/DS:");
+        } else {
+            ili9225_draw_string(5, 210, ILI9225_COLOR_GREEN, "TX/RX/DS:");
+        }
+    }
+
+    // TX/RX/DS
+    char itoa_buffer[12];
+    ili9225_draw_string(80, 210, ILI9225_COLOR_YELLOW, itoa(telemetry_get_tx_counter(), itoa_buffer, 10), 3);
+    ili9225_draw_string(110, 210, ILI9225_COLOR_YELLOW, itoa(telemetry_get_rx_counter(), itoa_buffer, 10), 3);
+    ili9225_draw_string(140, 210, ILI9225_COLOR_YELLOW, itoa(telemetry_get_desync_counter(), itoa_buffer, 10), 3);
+}
+
+static void draw_page_movement(bool u, bool d, bool l, bool r) {
+    static uint32_t s_call_counter = 0;
+    ++s_call_counter;
+
+    // Draw static text
+    if (s_call_counter == 1) {
+        ili9225_draw_string(5, 10, ILI9225_COLOR_GREEN, "MOVEMENT", 5);
+        ili9225_draw_hline(0, 27, 176, ILI9225_COLOR_WHITE);
+        
+        ili9225_draw_hline(0, 205, 176, ILI9225_COLOR_WHITE);
+        return;
+    }
+    int y = 45;
+
+    if (s_call_counter == 2) {
+        ili9225_draw_hline(15,  y + 70, 60, l ? ILI9225_COLOR_YELLOW : ILI9225_COLOR_WHITE);
+        ili9225_draw_hline(100, y + 70, 60, r ? ILI9225_COLOR_YELLOW : ILI9225_COLOR_WHITE);
+        ili9225_draw_vline(88,  y,      60, u ? ILI9225_COLOR_YELLOW : ILI9225_COLOR_WHITE);
+        ili9225_draw_vline(88,  y + 80, 60, d ? ILI9225_COLOR_YELLOW : ILI9225_COLOR_WHITE);
+        return;
+    }
+
+    if (s_call_counter == 3) {
+        ili9225_draw_string(15,  y + 55,  l ? ILI9225_COLOR_YELLOW : ILI9225_COLOR_WHITE, "-X");
+        ili9225_draw_string(145, y + 55,  r ? ILI9225_COLOR_YELLOW : ILI9225_COLOR_WHITE, "+X");
+        ili9225_draw_string(93,  y,       u ? ILI9225_COLOR_YELLOW : ILI9225_COLOR_WHITE, "+Y");
+        ili9225_draw_string(93,  y + 133, d ? ILI9225_COLOR_YELLOW : ILI9225_COLOR_WHITE, "-Y");
+        return;
+    }
+
+    // TX/RX/DS
+    if (s_call_counter == 4) {
+        draw_footer();
+        return;
+    }
+    
+    s_call_counter = 0;
+}
+
+static void draw_page_edm_status(rx_msg_t* telemetry) {
+    static uint32_t s_call_counter = 0;
+    ++s_call_counter;
+    
+    // Draw static text
+    if (s_call_counter == 1) {
+        ili9225_draw_string(5, 10, ILI9225_COLOR_GREEN, "EDM STATUS", 5);
+        ili9225_draw_hline(0, 27, 176, ILI9225_COLOR_WHITE);
+        
+        int y = 40;
+        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, " Freq (Hz):"); y += 13;
+        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "   Arc cnt:"); y += 13;
+        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, " Tens. (g):"); y += 13;
+        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, " Feed (us):"); y += 13;
+        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "Brake (us):"); y += 13;
+        y += 13;
+        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "   T1 (us):"); y += 13;
+        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "   T0 (us):"); y += 13;
+        
+        ili9225_draw_hline(0, 205, 176, ILI9225_COLOR_WHITE);
+        
+        return;
+    }
+
+    char itoa_buffer[12];
+
+    // State
+    if (s_call_counter == 2) {
+        if (telemetry->arc_state) {
+            ili9225_draw_string(135, 10, ILI9225_COLOR_GREEN, "[ ON]", 5);
+        } else {
+            ili9225_draw_string(135, 10, ILI9225_COLOR_RED, "[OFF]", 5);
+        }
+        return;
+    }
+
+    int y = 40;
+
+    // Freq
+    if (s_call_counter == 3) {
+        ili9225_draw_string(90, y, ILI9225_COLOR_YELLOW, itoa(telemetry->freq_hz, itoa_buffer, 10), 5);
+        return;
+    }
+    y += 13;
+
+    // Arc counter
+    if (s_call_counter == 4) {
+        ili9225_draw_string(90, y, ILI9225_COLOR_YELLOW, itoa(telemetry->arc_counter, itoa_buffer, 10), 5);
+        return;
+    }
+    y += 13;
+
+    // Tension (g)
+    if (s_call_counter == 5) {
+        ili9225_draw_string(90, y, ILI9225_COLOR_YELLOW, itoa(telemetry->tension_g, itoa_buffer, 10), 5);
+        return;
+    }
+    y += 13;
+
+    // Feeder freq
+    if (s_call_counter == 6) {
+        ili9225_draw_string(90, y, ILI9225_COLOR_YELLOW, itoa(telemetry->feeder_us, itoa_buffer, 10), 5);
+        return;
+    }
+    y += 13;
+
+    // Brake freq
+    if (s_call_counter == 7) {
+        ili9225_draw_string(90, y, ILI9225_COLOR_YELLOW, itoa(telemetry->brake_us, itoa_buffer, 10), 5);
+        return;
+    }
+    y += 13;
+    y += 13;
+
+    // T1
+    if (s_call_counter == 8) {
+        ili9225_draw_string(90, y, ILI9225_COLOR_YELLOW, itoa(telemetry->t1, itoa_buffer, 10), 5);
+        return;
+    }
+    y += 13;
+
+    // T0
+    if (s_call_counter == 9) {
+        ili9225_draw_string(90, y, ILI9225_COLOR_YELLOW, itoa(telemetry->t0, itoa_buffer, 10), 5);
+        return;
+    }
+    y += 13;
+
+    // TX/RX/DS
+    if (s_call_counter == 10) {
+        draw_footer();
+        return;
+    }
+
+    s_call_counter = 0;
+}
+
+static void draw_page_menu(int32_t menu_item_idx) {
+    static uint32_t s_call_counter = 0;
+    ++s_call_counter;
+
+    // Draw static text
+    if (s_call_counter == 1) {
+        ili9225_draw_string(5, 10, ILI9225_COLOR_GREEN, "MAIN MENU", 5);
+        ili9225_draw_hline(0, 27, 176, ILI9225_COLOR_WHITE);
+        
+        ili9225_draw_hline(0, 205, 176, ILI9225_COLOR_WHITE);
+        return;
+    }
+    int y = 40;
+
+    if (s_call_counter == 2) {
+        if (menu_item_idx == MAIN_MENU_ITEM_EDM_STATUS) {
+            ili9225_draw_string(5, y, ILI9225_COLOR_YELLOW, "-> EDM STATUS");
+        } else {
+            ili9225_draw_string(5, y, ILI9225_COLOR_WHITE,  "   EDM STATUS");
+        }
+        return;
+    }
+    y += 13;
+
+    if (s_call_counter == 3) {
+        if (menu_item_idx == MAIN_MENU_ITEM_MOVEMENT) {
+            ili9225_draw_string(5, y, ILI9225_COLOR_YELLOW, "-> MOVEMENT");
+        } else {
+            ili9225_draw_string(5, y, ILI9225_COLOR_WHITE,  "   MOVEMENT");
+        }
+        return;
+    }
+    y += 13;
+
+    // TX/RX/DS
+    if (s_call_counter == 4) {
+        draw_footer();
+        return;
+    }
+    
+    s_call_counter = 0;
 }
 
 
@@ -72,183 +273,63 @@ void display_init() {
     ili9225_clear();
     ili9225_set_font(ili9225_font_terminal6x8);
     ili9225_set_bg_color(ILI9225_COLOR_BLACK);
-
-    display_update();
 }
 
-void display_update() {
-    static bool s_is_init = false;
-    static char itoa_buffer[12];
-    static uint32_t s_call_counter = 0;
-
-    ++s_call_counter;
+void display_process() {
+    static int32_t s_menu_item_idx = 0;
+    static bool is_button_release = false;
 
     rx_msg_t telemetry;
     telemetry_get_rx_msg(&telemetry);
-    
-    // Draw static text
-    if (!s_is_init) {
-        ili9225_draw_line(0, 27, 176, ILI9225_COLOR_WHITE);
-        
-        int y = 40;
-        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, " Freq (Hz):"); y += 13;
-        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "   Arc cnt:"); y += 13;
-        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, " Tens. (g):"); y += 13;
-        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, " Feed (us):"); y += 13;
-        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "Brake (us):"); y += 13;
-        y += 13;
-        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "   T1 (us):"); y += 13;
-        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "   T0 (us):"); y += 13;
-        y += 13;
-        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "   X steps:"); y += 13;
+    ui_state_t* ui_state = ui_get_state();
 
-        ili9225_draw_line(0, 205, 176, ILI9225_COLOR_WHITE);
-        ili9225_draw_string(5, 210, ILI9225_COLOR_WHITE, "TX/RX/DS:");
+    if (ui_state->page == ui_page_t::PAGE_STATUS) {
+        draw_page_edm_status(&telemetry);
 
-        s_is_init = true;
-    }
-
-    // State
-    if (s_call_counter == 1) {
-        static int32_t s_last_v = -1;
-        bool v = telemetry.arc_state;
-        if (s_last_v != v) {
-            if (v) {
-                ili9225_draw_string(135, 10, ILI9225_COLOR_GREEN, "[ ON]", 5);
-            } else {
-                ili9225_draw_string(135, 10, ILI9225_COLOR_RED, "[OFF]", 5);
+        if (is_button_release) {
+            if (ui_state->button_start_stop) {
+                telemetry_tx(tx_msg_t{ .cmd = tx_msg_t::CMD_START_STOP_EDM });
+            } else if (ui_state->button_center) {
+                ui_state->page = ui_page_t::PAGE_MENU;
+                ili9225_clear();
             }
-            s_last_v = v;
         }
-        return;
+    } else if (ui_state->page == ui_page_t::PAGE_MOVEMENT) {
+        draw_page_movement(ui_state->button_up, ui_state->button_down, ui_state->button_left, ui_state->button_right);
+
+        if (is_button_release) {
+            if (ui_state->button_center) {
+                ui_state->page = ui_page_t::PAGE_MENU;
+                ili9225_clear();
+            }
+        }
+    } else if (ui_state->page == ui_page_t::PAGE_MENU) {
+        draw_page_menu(s_menu_item_idx);
+
+        if (is_button_release) {
+            if (ui_state->button_down) {
+                s_menu_item_idx++;
+                if (s_menu_item_idx > 3) {
+                    s_menu_item_idx = 0;
+                }
+            } else if (ui_state->button_up) {
+                s_menu_item_idx--;
+                if (s_menu_item_idx < 0) {
+                    s_menu_item_idx = 2;
+                }
+            } else if (ui_state->button_center) {
+                if (s_menu_item_idx == MAIN_MENU_ITEM_EDM_STATUS) {
+                    ui_state->page = ui_page_t::PAGE_STATUS;
+                } else if (s_menu_item_idx == MAIN_MENU_ITEM_MOVEMENT) {
+                    ui_state->page = ui_page_t::PAGE_MOVEMENT;
+                }
+                
+                ili9225_clear();
+            }
+        }
     }
 
-    int y = 40;
-
-    // Freq
-    if (s_call_counter == 2) {
-        static uint32_t s_last_v = -1;
-        uint32_t v = telemetry.freq_hz;
-        if (s_last_v != v) {
-            ili9225_draw_string(90, y, ILI9225_COLOR_YELLOW, itoa(v, itoa_buffer, 10), 5);
-            s_last_v = v;
-        }
-        return;
-    }
-    y += 13;
-
-    // Arc counter
-    if (s_call_counter == 3) {
-        static uint32_t s_last_v = -1;
-        uint32_t v = telemetry.arc_counter;
-        if (s_last_v != v) {
-            ili9225_draw_string(90, y, ILI9225_COLOR_YELLOW, itoa(v, itoa_buffer, 10), 5);
-            s_last_v = v;
-        }
-        return;
-    }
-    y += 13;
-
-    // Tension (g)
-    if (s_call_counter == 4) {
-        static int32_t s_last_v = -1;
-        int32_t v = telemetry.tension_g;
-        if (s_last_v != v) {
-            ili9225_draw_string(90, y, ILI9225_COLOR_YELLOW, itoa(v, itoa_buffer, 10), 5);
-            s_last_v = v;
-        }
-        return;
-    }
-    y += 13;
-
-    // Feeder freq
-    if (s_call_counter == 5) {
-        static int32_t s_last_v = -1;
-        int32_t v = telemetry.feeder_us;
-        if (s_last_v != v) {
-            ili9225_draw_string(90, y, ILI9225_COLOR_YELLOW, itoa(v, itoa_buffer, 10), 5);
-            s_last_v = v;
-        }
-        return;
-    }
-    y += 13;
-
-    // Brake freq
-    if (s_call_counter == 6) {
-        static int32_t s_last_v = -1;
-        int32_t v = telemetry.brake_us;
-        if (s_last_v != v) {
-            ili9225_draw_string(90, y, ILI9225_COLOR_YELLOW, itoa(v, itoa_buffer, 10), 5);
-            s_last_v = v;
-        }
-        return;
-    }
-    y += 13;
-    y += 13;
-
-    // T1
-    if (s_call_counter == 7) {
-        static int32_t s_last_v = -1;
-        int32_t v = telemetry.t1;
-        if (s_last_v != v) {
-            ili9225_draw_string(90, y, ILI9225_COLOR_YELLOW, itoa(v, itoa_buffer, 10), 5);
-            s_last_v = v;
-        }
-        return;
-    }
-    y += 13;
-
-    // T0
-    if (s_call_counter == 8) {
-        static int32_t s_last_v = -1;
-        int32_t v = telemetry.t0;
-        if (s_last_v != v) {
-            ili9225_draw_string(90, y, ILI9225_COLOR_YELLOW, itoa(v, itoa_buffer, 10), 5);
-            s_last_v = v;
-        }
-        return;
-    }
-    y += 13;
-    y += 13;
-
-    // X steps
-    if (s_call_counter == 9) {
-        // static int32_t s_last_v = -1;
-        // int32_t v = rand() % 100000;
-        // if (s_last_v != v) {
-        //     ili9225_draw_string(90, y, ILI9225_COLOR_YELLOW, itoa(v, itoa_buffer, 10), 5);
-        //     s_last_v = v;
-        // }
-        return;
-    }
-    y += 13;
-
-
-    // TX/RX/DS
-    if (s_call_counter == 10) {
-        static int32_t s_last_tx = -1;
-        static int32_t s_last_rx = -1;
-        static int32_t s_last_ds = -1;
-
-        int32_t v = telemetry_get_tx_counter(); 
-        if (s_last_tx != v) {
-            ili9225_draw_string(70, 210, ILI9225_COLOR_YELLOW, itoa(v, itoa_buffer, 10), 3);
-            s_last_tx = v;
-        }
-
-        v = telemetry_get_rx_counter();
-        if (s_last_rx != v) {
-            ili9225_draw_string(100, 210, ILI9225_COLOR_YELLOW, itoa(v, itoa_buffer, 10), 3);
-            s_last_rx = v;
-        }
-
-        v = telemetry_get_desync_counter();
-        if (s_last_ds != v) {
-            ili9225_draw_string(130, 210, ILI9225_COLOR_YELLOW, itoa(v, itoa_buffer, 10), 3);
-            s_last_ds = v;
-        }
-        return;
-    }
-
-    s_call_counter = 0;
+    // All buttons released?
+    is_button_release = (!ui_state->button_start_stop && !ui_state->button_left && !ui_state->button_down && 
+                         !ui_state->button_center && !ui_state->button_right && !ui_state->button_up);
 }

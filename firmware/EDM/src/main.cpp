@@ -266,6 +266,11 @@ int main() {
 
             keyboard_process();
         }
+        rx_msg_t rx_msg;
+        telemetry_get_rx_msg(&rx_msg);
+        if (rx_msg.cmd == rx_msg_t::CMD_START_STOP_EDM) {
+            g_is_enabled = !g_is_enabled;
+        }
 
         //
         // Short circuit control

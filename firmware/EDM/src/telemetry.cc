@@ -127,7 +127,6 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef* usart) {
 
             ++g_rx_counter;
             g_rx_bytes_count = 0;
-            return;
         }
 
     } while (false);
@@ -194,5 +193,6 @@ void telemetry_tx(tx_msg_t* msg) {
 void telemetry_get_rx_msg(rx_msg_t* msg) { 
     __disable_irq(); // To avoid half read g_rx_msg
     *msg = g_rx_msg;
+    g_rx_msg.cmd = rx_msg_t::CMD_START_NONE;
     __enable_irq();
 }

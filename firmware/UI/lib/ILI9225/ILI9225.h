@@ -1,5 +1,5 @@
-#ifndef ILI9225_H
-#define	ILI9225_H
+#ifndef _ILI9225_H_
+#define	_ILI9225_H_
 #include <stdint.h>
 
 #ifdef	__cplusplus
@@ -61,7 +61,7 @@ typedef struct __attribute__((packed)) {
     uint8_t glyph_size;
 } ili9225_font_t;
 
-extern const ili9225_font_t* const ili9225_font_8x13;
+// extern const ili9225_font_t* const ili9225_font_8x13;
 extern const ili9225_font_t* const ili9225_font_terminal6x8;
 
 /// **************************************************************************
@@ -115,13 +115,20 @@ void ili9225_set_font(const ili9225_font_t* font);
 void ili9225_set_bg_color(uint16_t bg_color);
 
 /// **************************************************************************
-/// @brief  Draw a horizontal line as a filled rectangle
-/// @param  [in] x1: left coordinate
-/// @param  [in] y1: top coordinate
+/// @brief  Draw a 1px horizontal line as a filled rectangle
+/// @param  [in] x1, y1: start of line
 /// @param  [in] w: line width in pixels
-/// @param  [in] color: RGB565 line color
+/// @param  [in] color: line color
 /// **************************************************************************
-void ili9225_draw_line(int x1, int y1, int w, uint16_t color);
+void ili9225_draw_hline(int x1, int y1, int w, uint16_t color);
+
+/// **************************************************************************
+/// @brief  Draw a 1px vertical line as a filled rectangle
+/// @param  [in] x1, y1: start of line
+/// @param  [in] w: line height in pixels
+/// @param  [in] color: line color
+/// **************************************************************************
+void ili9225_draw_vline(int x1, int y1, int h, uint16_t color);
 
 /// **************************************************************************
 /// @brief  Draw a bitmap with integer scaling
@@ -136,5 +143,5 @@ void ili9225_draw_bitmap(int x, int y, int scale, const unsigned int* bmp);
 }
 #endif
 
-#endif	/* ILI9225_H */
+#endif	// _ILI9225_H_ 
 

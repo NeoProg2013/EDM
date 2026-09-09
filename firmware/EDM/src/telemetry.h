@@ -15,6 +15,10 @@ typedef struct {
 } tx_msg_t;
 
 typedef struct {
+    enum {
+        CMD_START_NONE,
+        CMD_START_STOP_EDM,
+    };
     uint8_t cmd;
 } rx_msg_t;
 

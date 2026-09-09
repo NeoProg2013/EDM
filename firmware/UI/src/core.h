@@ -5,6 +5,8 @@
 #include <stdint.h>
 #include <math.h>
 
+#define constrain(amt, low, high) ((amt) < (low) ? (low) : ((amt) > (high) ? (high) : (amt)))
+
 #define true  (1)
 #define false (0)
 #define BUILD_UINT16(msb, lsb)   (((uint16_t)(msb) << 8) | (uint8_t)(lsb))
@@ -14,7 +16,7 @@
 // 
 // Display ILI9225 (SPI1 interface)
 // --------------------------------
-// PA9 - LCD_RST   (display reset)
+// PA0 - LCD_RST   (display reset)
 // PB1 - LCD_RS/DC (register select / data-command)
 // PA6 - LCD_CS    (chip select)
 // PA5 - SPI SCK   (SPI1)

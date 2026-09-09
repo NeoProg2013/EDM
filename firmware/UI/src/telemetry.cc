@@ -12,6 +12,7 @@ static uint16_t g_rx_bytes_count = 0;
 static uint8_t  g_rx_byte        = 0;
 static bool     g_is_sync_lost   = true;
 static bool     g_tx_ready       = true;
+static bool     g_is_connected   = false;
 
 static uint8_t g_tx_counter = 0;
 static uint8_t g_rx_counter = 0;
@@ -185,6 +186,17 @@ void telemetry_get_rx_msg(rx_msg_t* msg) {
     __enable_irq();
 }
 
+void telemetry_process() {
+    static uint8_t s_prev_rx_counter = 0;
+    static uint32_t s_last_check_time_ms = 0;
+    if (HAL_GetTick() - s_last_check_time_ms > 500) {
+        g_is_connected = (s_prev_rx_counter != g_rx_counter);
+        s_prev_rx_counter = g_rx_counter;
+    }
+}
+
 uint8_t telemetry_get_rx_counter()     { return g_rx_counter;     }
 uint8_t telemetry_get_tx_counter()     { return g_tx_counter;     }
 uint8_t telemetry_get_desync_counter() { return g_desync_counter; }
+bool telemetry_get_sync_state()        { return g_is_sync_lost;   }
+bool telemetry_get_connection_state()  { return g_is_connected;   }

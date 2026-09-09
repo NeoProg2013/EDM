@@ -2,7 +2,7 @@
 #define __TELEMETRY_H__
 #include "core.h"
 
-typedef struct {
+struct rx_msg_t {
     uint8_t  arc_state;
     uint8_t  step_state;
     uint16_t freq_hz;
@@ -12,11 +12,15 @@ typedef struct {
     uint16_t brake_us;
     uint16_t t1;
     uint16_t t0;
-} rx_msg_t;
+};
 
-typedef struct {
+struct tx_msg_t {
+    enum {
+        CMD_START_NONE,
+        CMD_START_STOP_EDM,
+    };
     uint8_t cmd;
-} tx_msg_t;
+};
 
 extern UART_HandleTypeDef usart1;
 extern DMA_HandleTypeDef hdma_usart1_tx;
@@ -28,6 +32,8 @@ void    telemetry_get_rx_msg(rx_msg_t* msg);
 uint8_t telemetry_get_rx_counter();
 uint8_t telemetry_get_tx_counter();
 uint8_t telemetry_get_desync_counter();
+bool    telemetry_get_sync_state();
+bool    telemetry_get_connection_state();
 
 
 #endif // __TELEMETRY_H__

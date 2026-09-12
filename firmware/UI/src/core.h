@@ -3,6 +3,7 @@
 
 #include "stm32f0xx_hal.h"
 #include <stdint.h>
+#include <string.h>
 #include <math.h>
 
 #define constrain(amt, low, high) ((amt) < (low) ? (low) : ((amt) > (high) ? (high) : (amt)))

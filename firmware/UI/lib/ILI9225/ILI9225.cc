@@ -532,27 +532,6 @@ void ili9225_clear() {
 }
 
 /// **************************************************************************
-/// @brief  Draw one pixel on the display
-/// @param  [in] x: pixel X coordinate
-/// @param  [in] y: pixel Y coordinate
-/// @param  [in] color: RGB565 pixel color
-/// **************************************************************************
-void ili9225_draw_pixel(int x, int y, uint16_t color) {
-    // If we are in landscape view then translate -90 degrees
-    if (LANDSCAPE) {
-        _swap(&x, &y);
-        y = ILI9225_WIDTH - y;
-    }
-    
-    // Set the x, y position that we want to write to
-    lcd_set_draw_window(x, y, x + 1, y + 1);
-    HAL_GPIO_WritePin(CS_PORT, CS_PIN, GPIO_PIN_RESET);
-    lcd_write_data(color >> 8);
-    lcd_write_data(color & 0xFF);
-    HAL_GPIO_WritePin(CS_PORT, CS_PIN, GPIO_PIN_SET);
-}
-
-/// **************************************************************************
 /// @brief  Fill a rectangular region with a solid color
 /// @param  [in] x1: left coordinate
 /// @param  [in] y1: top coordinate
@@ -665,56 +644,3 @@ void ili9225_draw_hline(int x1, int y1, int w, uint16_t color) {
 void ili9225_draw_vline(int x1, int y1, int h, uint16_t color) {
     ili9225_fill_rectangle(x1, y1, x1, y1 + h, color);
 }
-
-/// **************************************************************************
-/// @brief  Draw a bitmap with integer scaling
-/// @param  [in] x1: left coordinate
-/// @param  [in] y1: top coordinate
-/// @param  [in] scale: integer scale factor
-/// @param  [in] bmp: bitmap array with width and height in the first words
-/// **************************************************************************
-void ili9225_draw_bitmap(int x1, int y1, int scale, const unsigned int* bmp) {
-	int width = bmp[0];
-	int height = bmp[1];
-	unsigned int this_byte;
-	int x2 = x1 + (width * scale);
-	int y2 = y1 + (height * scale);
-
-	// If landscape view then translate everyting -90 degrees
-	if (LANDSCAPE) {
-		_swap(&x1, &y1);
-		_swap(&x2, &y2);
-		y1 = ILI9225_WIDTH - y1;
-		y2 = ILI9225_WIDTH - y2;
-		_swap(&y2, &y1);
-		_swap(&width, &height);
-	}
-
-	// Set the drawing region
-	lcd_set_draw_window(x1, y1, x2 + scale - 1, y2);
-
-	// Write color to each pixel
-    HAL_GPIO_WritePin(CS_PORT, CS_PIN, GPIO_PIN_RESET);
-	for (int i = 0; i < height; ++i) {
-		// Yhis loop does the vertical axis scaling (two of each line)
-		for (int sv = 0; sv < scale; ++sv) {
-			for (int j = 0; j <= width; ++j) {
-				// Choose which byte to display depending on the screen orientation
-				// NOTE: We add a byte because of the first two bytes being dimension data in the array
-				if (LANDSCAPE) {
-					this_byte = bmp[(height * (j + 1)) - i + 1];
-                } else {
-					this_byte = bmp[(width * i) + j + 1];
-                }
-
-				// And this loop does the horizontal axis scale (two of each pixels on the line))
-				for (int sh = 0; sh < scale; ++sh) {
-					lcd_write_data(this_byte >> 8);
-					lcd_write_data(this_byte & 0xFF);
-				}
-			}
-		}
-	}
-    HAL_GPIO_WritePin(CS_PORT, CS_PIN, GPIO_PIN_SET);
-}
-

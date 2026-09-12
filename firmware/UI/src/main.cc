@@ -50,6 +50,7 @@ int main() {
     while (true) {
         display_process();
         ui_process();
+        telemetry_process();
     }
 
     return 0;

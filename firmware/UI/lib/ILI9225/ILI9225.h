@@ -75,14 +75,6 @@ void ili9225_init(void);
 void ili9225_clear(void);
 
 /// **************************************************************************
-/// @brief  Draw one pixel on the display
-/// @param  [in] x: pixel X coordinate
-/// @param  [in] y: pixel Y coordinate
-/// @param  [in] color: RGB565 pixel color
-/// **************************************************************************
-void ili9225_draw_pixel(int x, int y, uint16_t color);
-
-/// **************************************************************************
 /// @brief  Fill a rectangular region with a solid color
 /// @param  [in] x1: left coordinate
 /// @param  [in] y1: top coordinate
@@ -129,15 +121,6 @@ void ili9225_draw_hline(int x1, int y1, int w, uint16_t color);
 /// @param  [in] color: line color
 /// **************************************************************************
 void ili9225_draw_vline(int x1, int y1, int h, uint16_t color);
-
-/// **************************************************************************
-/// @brief  Draw a bitmap with integer scaling
-/// @param  [in] x: left coordinate
-/// @param  [in] y: top coordinate
-/// @param  [in] scale: integer scale factor
-/// @param  [in] bmp: bitmap array with width and height in the first words
-/// **************************************************************************
-void ili9225_draw_bitmap(int x, int y, int scale, const unsigned int* bmp);
 
 #ifdef	__cplusplus
 }

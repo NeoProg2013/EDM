@@ -4,8 +4,9 @@
 
 // UI pages
 enum ui_page_t {
-    PAGE_STATUS,
-    PAGE_MOVEMENT,
+    PAGE_EDM_STATUS,
+    PAGE_EDM_MOVEMENT,
+    PAGE_EDM_PARAMETERS,
     PAGE_MENU,
 };
 

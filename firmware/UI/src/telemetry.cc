@@ -36,157 +36,157 @@ static uint16_t calc_checksum(const uint8_t* p, uint16_t size) {
     return checksum;
 }
 
-static void usart1_init() {
-    // Init USART
-    usart1.Instance          = USART1;
-    usart1.Init.BaudRate     = 9600;
-    usart1.Init.WordLength   = UART_WORDLENGTH_8B;
-    usart1.Init.StopBits     = UART_STOPBITS_1;
-    usart1.Init.Parity       = UART_PARITY_NONE;
-    usart1.Init.Mode         = UART_MODE_TX_RX;
-    usart1.Init.OverSampling = UART_OVERSAMPLING_16;
-    if (HAL_UART_Init(&usart1) != HAL_OK) {
-        while(1);
-    }
+// static void usart1_init() {
+//     // Init USART
+//     usart1.Instance          = USART1;
+//     usart1.Init.BaudRate     = 9600;
+//     usart1.Init.WordLength   = UART_WORDLENGTH_8B;
+//     usart1.Init.StopBits     = UART_STOPBITS_1;
+//     usart1.Init.Parity       = UART_PARITY_NONE;
+//     usart1.Init.Mode         = UART_MODE_TX_RX;
+//     usart1.Init.OverSampling = UART_OVERSAMPLING_16;
+//     if (HAL_UART_Init(&usart1) != HAL_OK) {
+//         while(1);
+//     }
 
-    // Setup DMA1 Channel 2 (TX)
-    hdma_usart1_tx.Instance                 = DMA1_Channel2;
-    hdma_usart1_tx.Init.Direction           = DMA_MEMORY_TO_PERIPH;
-    hdma_usart1_tx.Init.PeriphInc           = DMA_PINC_DISABLE;
-    hdma_usart1_tx.Init.MemInc              = DMA_MINC_ENABLE;
-    hdma_usart1_tx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
-    hdma_usart1_tx.Init.MemDataAlignment    = DMA_MDATAALIGN_BYTE;
-    hdma_usart1_tx.Init.Mode                = DMA_NORMAL;
-    hdma_usart1_tx.Init.Priority            = DMA_PRIORITY_LOW;
-    if (HAL_DMA_Init(&hdma_usart1_tx) != HAL_OK) {
-        while(1);
-    }
-    __HAL_LINKDMA(&usart1, hdmatx, hdma_usart1_tx);
+//     // Setup DMA1 Channel 2 (TX)
+//     hdma_usart1_tx.Instance                 = DMA1_Channel2;
+//     hdma_usart1_tx.Init.Direction           = DMA_MEMORY_TO_PERIPH;
+//     hdma_usart1_tx.Init.PeriphInc           = DMA_PINC_DISABLE;
+//     hdma_usart1_tx.Init.MemInc              = DMA_MINC_ENABLE;
+//     hdma_usart1_tx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
+//     hdma_usart1_tx.Init.MemDataAlignment    = DMA_MDATAALIGN_BYTE;
+//     hdma_usart1_tx.Init.Mode                = DMA_NORMAL;
+//     hdma_usart1_tx.Init.Priority            = DMA_PRIORITY_LOW;
+//     if (HAL_DMA_Init(&hdma_usart1_tx) != HAL_OK) {
+//         while(1);
+//     }
+//     __HAL_LINKDMA(&usart1, hdmatx, hdma_usart1_tx);
 
-    // Setup USART IRQ 
-    HAL_UART_Receive_IT(&usart1, &g_rx_byte, 1);
-    HAL_NVIC_SetPriority(USART1_IRQn, 0, 0);
-    HAL_NVIC_EnableIRQ(USART1_IRQn);
+//     // Setup USART IRQ 
+//     HAL_UART_Receive_IT(&usart1, &g_rx_byte, 1);
+//     HAL_NVIC_SetPriority(USART1_IRQn, 0, 0);
+//     HAL_NVIC_EnableIRQ(USART1_IRQn);
 
-    // Setup DMA IRQ
-    HAL_NVIC_SetPriority(DMA1_Channel2_3_IRQn, 0, 0);
-    HAL_NVIC_EnableIRQ(DMA1_Channel2_3_IRQn);
-}
+//     // Setup DMA IRQ
+//     HAL_NVIC_SetPriority(DMA1_Channel2_3_IRQn, 0, 0);
+//     HAL_NVIC_EnableIRQ(DMA1_Channel2_3_IRQn);
+// }
 
-static void usart1_gpio_init() {
-    // PA2 -> TX
-    GPIO_InitTypeDef tx = {0};
-    tx.Pin       = GPIO_PIN_2;
-    tx.Mode      = GPIO_MODE_AF_PP;
-    tx.Pull      = GPIO_NOPULL;
-    tx.Speed     = GPIO_SPEED_FREQ_HIGH;
-    tx.Alternate = GPIO_AF1_USART1;
-    HAL_GPIO_Init(GPIOA, &tx);
+// static void usart1_gpio_init() {
+//     // PA2 -> TX
+//     GPIO_InitTypeDef tx = {0};
+//     tx.Pin       = GPIO_PIN_2;
+//     tx.Mode      = GPIO_MODE_AF_PP;
+//     tx.Pull      = GPIO_NOPULL;
+//     tx.Speed     = GPIO_SPEED_FREQ_HIGH;
+//     tx.Alternate = GPIO_AF1_USART1;
+//     HAL_GPIO_Init(GPIOA, &tx);
 
-    // PA3 -> RX
-    GPIO_InitTypeDef rx = {0};
-    rx.Pin       = GPIO_PIN_3;
-    rx.Mode      = GPIO_MODE_AF_PP;
-    rx.Pull      = GPIO_PULLUP;
-    rx.Speed     = GPIO_SPEED_FREQ_HIGH;
-    rx.Alternate = GPIO_AF1_USART1;
-    HAL_GPIO_Init(GPIOA, &rx);
-}
+//     // PA3 -> RX
+//     GPIO_InitTypeDef rx = {0};
+//     rx.Pin       = GPIO_PIN_3;
+//     rx.Mode      = GPIO_MODE_AF_PP;
+//     rx.Pull      = GPIO_PULLUP;
+//     rx.Speed     = GPIO_SPEED_FREQ_HIGH;
+//     rx.Alternate = GPIO_AF1_USART1;
+//     HAL_GPIO_Init(GPIOA, &rx);
+// }
 
-void HAL_UART_TxCpltCallback(UART_HandleTypeDef* huart) {
-    if (huart->Instance != USART1) {
-        return;
-    }
-    g_tx_ready = true;
-}
+// void HAL_UART_TxCpltCallback(UART_HandleTypeDef* huart) {
+//     if (huart->Instance != USART1) {
+//         return;
+//     }
+//     g_tx_ready = true;
+// }
 
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef* huart) {
-    if (huart->Instance != USART1) {
-        return;
-    }
+// void HAL_UART_RxCpltCallback(UART_HandleTypeDef* huart) {
+//     if (huart->Instance != USART1) {
+//         return;
+//     }
 
-    do {
-        if (g_is_sync_lost) {
-            // Wait end of frame
-            if (g_rx_byte != STOP_MARKER) {
-                break;
-            }
+//     do {
+//         if (g_is_sync_lost) {
+//             // Wait end of frame
+//             if (g_rx_byte != STOP_MARKER) {
+//                 break;
+//             }
             
-            // Sync! Next byte should be 0xAA
-            g_rx_bytes_count = 0;
-            g_is_sync_lost = false;
-            break;
-        }
+//             // Sync! Next byte should be 0xAA
+//             g_rx_bytes_count = 0;
+//             g_is_sync_lost = false;
+//             break;
+//         }
 
-        // Check first byte of incoming frame
-        if (g_rx_bytes_count == 0 && g_rx_byte != START_MARKER) {
-            g_is_sync_lost = true; // Desync. First frame byte not 
-            ++g_desync_counter;
-            break;
-        }
+//         // Check first byte of incoming frame
+//         if (g_rx_bytes_count == 0 && g_rx_byte != START_MARKER) {
+//             g_is_sync_lost = true; // Desync. First frame byte not 
+//             ++g_desync_counter;
+//             break;
+//         }
 
-        // Save incoming byte to buffer
-        g_rx_buffer[g_rx_bytes_count] = g_rx_byte;
-        ++g_rx_bytes_count;
+//         // Save incoming byte to buffer
+//         g_rx_buffer[g_rx_bytes_count] = g_rx_byte;
+//         ++g_rx_bytes_count;
 
-        // Check incoming frame
-        if (g_rx_bytes_count == sizeof(g_rx_buffer)) {
-            if (g_rx_buffer[0] != START_MARKER || g_rx_buffer[g_rx_bytes_count - 1] != STOP_MARKER) {
-                g_is_sync_lost = true;
-                ++g_desync_counter;
-                break;
-            }
+//         // Check incoming frame
+//         if (g_rx_bytes_count == sizeof(g_rx_buffer)) {
+//             if (g_rx_buffer[0] != START_MARKER || g_rx_buffer[g_rx_bytes_count - 1] != STOP_MARKER) {
+//                 g_is_sync_lost = true;
+//                 ++g_desync_counter;
+//                 break;
+//             }
 
-            // Calc checksum
-            uint16_t recv_checksum = BUILD_UINT16(g_rx_buffer[17], g_rx_buffer[18]);
-            uint16_t checksum = calc_checksum(&g_rx_buffer[1], sizeof(rx_msg_t) - sizeof(rx_msg_t::checksum));
-            if (checksum != recv_checksum) { // Bad frame - resync
-                g_is_sync_lost = true;
-                ++g_desync_counter;
-                break;
-            }
+//             // Calc checksum
+//             uint16_t recv_checksum = BUILD_UINT16(g_rx_buffer[17], g_rx_buffer[18]);
+//             uint16_t checksum = calc_checksum(&g_rx_buffer[1], sizeof(rx_msg_t) - sizeof(rx_msg_t::checksum));
+//             if (checksum != recv_checksum) { // Bad frame - resync
+//                 g_is_sync_lost = true;
+//                 ++g_desync_counter;
+//                 break;
+//             }
 
-            // Save new frame
-            g_rx_msg.arc_state   = g_rx_buffer[1];
-            g_rx_msg.step_state  = g_rx_buffer[2];
-            g_rx_msg.freq_hz     = BUILD_UINT16(g_rx_buffer[3],  g_rx_buffer[4]);
-            g_rx_msg.arc_counter = BUILD_UINT16(g_rx_buffer[5],  g_rx_buffer[6]);
-            g_rx_msg.tension_g   = BUILD_UINT16(g_rx_buffer[7],  g_rx_buffer[8]);
-            g_rx_msg.feeder_us   = BUILD_UINT16(g_rx_buffer[9],  g_rx_buffer[10]);
-            g_rx_msg.brake_us    = BUILD_UINT16(g_rx_buffer[11], g_rx_buffer[12]);
-            g_rx_msg.t1          = BUILD_UINT16(g_rx_buffer[13], g_rx_buffer[14]);
-            g_rx_msg.t0          = BUILD_UINT16(g_rx_buffer[15], g_rx_buffer[16]);
-            g_rx_msg.checksum    = recv_checksum;
+//             // Save new frame
+//             g_rx_msg.arc_state   = g_rx_buffer[1];
+//             g_rx_msg.step_state  = g_rx_buffer[2];
+//             g_rx_msg.freq_hz     = BUILD_UINT16(g_rx_buffer[3],  g_rx_buffer[4]);
+//             g_rx_msg.arc_counter = BUILD_UINT16(g_rx_buffer[5],  g_rx_buffer[6]);
+//             g_rx_msg.tension_g   = BUILD_UINT16(g_rx_buffer[7],  g_rx_buffer[8]);
+//             g_rx_msg.feeder_us   = BUILD_UINT16(g_rx_buffer[9],  g_rx_buffer[10]);
+//             g_rx_msg.brake_us    = BUILD_UINT16(g_rx_buffer[11], g_rx_buffer[12]);
+//             g_rx_msg.t1          = BUILD_UINT16(g_rx_buffer[13], g_rx_buffer[14]);
+//             g_rx_msg.t0          = BUILD_UINT16(g_rx_buffer[15], g_rx_buffer[16]);
+//             g_rx_msg.checksum    = recv_checksum;
 
-            g_rx_bytes_count = 0;
-            ++g_rx_counter;
-            break;
-        }
-    } while (false);
+//             g_rx_bytes_count = 0;
+//             ++g_rx_counter;
+//             break;
+//         }
+//     } while (false);
 
-    HAL_UART_Receive_IT(&usart1, &g_rx_byte, 1);
-}
+//     HAL_UART_Receive_IT(&usart1, &g_rx_byte, 1);
+// }
 
-void HAL_UART_ErrorCallback(UART_HandleTypeDef* huart) {
-    if (huart->Instance != USART1) {
-        return;
-    }
+// void HAL_UART_ErrorCallback(UART_HandleTypeDef* huart) {
+//     if (huart->Instance != USART1) {
+//         return;
+//     }
 
-    // Clear all errors
-    __HAL_UART_CLEAR_FLAG(huart, UART_CLEAR_OREF | UART_CLEAR_NEF | UART_CLEAR_FEF);
+//     // Clear all errors
+//     __HAL_UART_CLEAR_FLAG(huart, UART_CLEAR_OREF | UART_CLEAR_NEF | UART_CLEAR_FEF);
 
-    // Restart receiver
-    g_rx_bytes_count = 0;
-    HAL_UART_Receive_IT(&usart1, &g_rx_byte, 1);
-    g_is_sync_lost = true;
-    ++g_desync_counter;
-}
+//     // Restart receiver
+//     g_rx_bytes_count = 0;
+//     HAL_UART_Receive_IT(&usart1, &g_rx_byte, 1);
+//     g_is_sync_lost = true;
+//     ++g_desync_counter;
+// }
 
 
 
 void telemetry_init() {
-    usart1_gpio_init();
-    usart1_init();
+    // usart1_gpio_init();
+    // usart1_init();
 
     // Start receiver
     HAL_UART_Receive_IT(&usart1, &g_rx_byte, 1);

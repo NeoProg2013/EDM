@@ -1,31 +1,39 @@
-#include "stm32f0xx_hal.h"
+#include "core.h"
+#include "spi1.h"
 #include "ILI9225.h"
-#include <math.h>
-#include <string.h>
 
 #define rcast reinterpret_cast
 #define scast static_cast
 
-extern SPI_HandleTypeDef hspi1;
-
 // Display configuration
 #define LANDSCAPE                      (0)
 
-// Chip select
+// PA2 - LED
+// PA3 - RST
+// PA4 - CS
+// PA5 - SCK  (SPI1)
+// PA6 - RS (register select / data-command)
+// PA7 - MOSI (SPI1)
+
+// Chip select pin
 #define	CS_PORT	                        GPIOA
-#define CS_PIN		                    GPIO_PIN_6
+#define CS_PIN		                    GPIO_PIN_4
 
 // Reset pin
 #define RST_PORT                        GPIOA
-#define RST_PIN	                        GPIO_PIN_1
+#define RST_PIN	                        GPIO_PIN_3
 
-// Command select
-#define	RS_PORT                         GPIOB
-#define RS_PIN                          GPIO_PIN_1
+// Register select / data-command pin
+#define	RS_PORT                         GPIOA
+#define RS_PIN                          GPIO_PIN_6
+
+// LED pin
+#define LED_PORT                        GPIOA
+#define LED_PIN	                        GPIO_PIN_2
 
 
 
-/* ILI9225 LCD Registers */
+// ILI9225 LCD Registers
 #define ILI9225_DRIVER_OUTPUT_CTRL      (0x01u)  // Driver Output Control
 #define ILI9225_LCD_AC_DRIVING_CTRL     (0x02u)  // LCD AC Driving Control
 #define ILI9225_ENTRY_MODE              (0x03u)  // Entry Mode
@@ -300,13 +308,6 @@ static const glyph_t* lcd_get_glyph(const ili9225_font_t* font, uint8_t glyph_in
     return rcast<const glyph_t*>(font_data + sizeof(ili9225_font_t) + (scast<uint16_t>(glyph_index) * font->glyph_size));
 }
 
-/// **************************************************************************
-/// @brief  Write one byte to SPI without changing chip select state
-/// @param  [in] data: byte value to transmit
-/// **************************************************************************
-static void spi_write(uint8_t data) {
-	HAL_SPI_Transmit(&hspi1, &data, 1, 100);
-}
 
 /// **************************************************************************
 /// @brief  Write one data byte to the display controller
@@ -314,7 +315,7 @@ static void spi_write(uint8_t data) {
 /// **************************************************************************
 static void lcd_write_data(uint8_t data) {
     HAL_GPIO_WritePin(RS_PORT, RS_PIN, GPIO_PIN_SET);   // DC HIGH
-    spi_write(data);                                    // Send data to the SPI register
+    spi1_write(&data, 1);                                   // Send data to the SPI register
 }
 
 /// **************************************************************************
@@ -323,7 +324,7 @@ static void lcd_write_data(uint8_t data) {
 /// **************************************************************************
 static void lcd_write_command(uint8_t data) {
     HAL_GPIO_WritePin(RS_PORT, RS_PIN, GPIO_PIN_RESET); // Pull the command AND chip select lines LOW
-    spi_write(data);                                    // Send data to the SPI register
+    spi1_write(&data, 1);                               // Send data to the SPI register
 }
 
 /// **************************************************************************
@@ -502,7 +503,7 @@ static void lcd_draw_char(int x, int y, const glyph_t* glyph, const ili9225_font
     // Send data
     HAL_GPIO_WritePin(CS_PORT, CS_PIN, GPIO_PIN_RESET);
     HAL_GPIO_WritePin(RS_PORT, RS_PIN, GPIO_PIN_SET);
-    HAL_SPI_Transmit(&hspi1, glyph_buffer, sizeof(glyph_buffer), 100);
+    spi1_write(glyph_buffer, sizeof(glyph_buffer));
     HAL_GPIO_WritePin(CS_PORT, CS_PIN, GPIO_PIN_SET);
 }
 
@@ -510,6 +511,34 @@ static void lcd_draw_char(int x, int y, const glyph_t* glyph, const ili9225_font
 /// @brief  Initialize the ILI9225 display controller
 /// **************************************************************************
 void ili9225_init() {
+    spi1_init();
+
+    GPIO_InitTypeDef gpio = {0};
+    gpio.Pin       = CS_PIN;
+    gpio.Mode      = GPIO_MODE_OUTPUT_PP;
+    gpio.Pull      = GPIO_NOPULL;
+    gpio.Speed     = GPIO_SPEED_FREQ_HIGH;
+    HAL_GPIO_Init(CS_PORT, &gpio);
+
+    gpio.Pin       = RS_PIN;
+    gpio.Mode      = GPIO_MODE_OUTPUT_PP;
+    gpio.Pull      = GPIO_NOPULL;
+    gpio.Speed     = GPIO_SPEED_FREQ_HIGH;
+    HAL_GPIO_Init(RS_PORT, &gpio);
+
+    gpio.Pin       = RST_PIN;
+    gpio.Mode      = GPIO_MODE_OUTPUT_PP;
+    gpio.Pull      = GPIO_NOPULL;
+    gpio.Speed     = GPIO_SPEED_FREQ_HIGH;
+    HAL_GPIO_Init(RST_PORT, &gpio);
+
+    gpio.Pin       = LED_PIN;
+    gpio.Mode      = GPIO_MODE_OUTPUT_PP;
+    gpio.Pull      = GPIO_NOPULL;
+    gpio.Speed     = GPIO_SPEED_FREQ_HIGH;
+    HAL_GPIO_Init(LED_PORT, &gpio);
+    HAL_GPIO_WritePin(LED_PORT, LED_PIN, GPIO_PIN_SET); 
+
     // SET control pins for the LCD HIGH (they are active LOW)
     HAL_GPIO_WritePin(CS_PORT, CS_PIN, GPIO_PIN_SET);   // Chip select
     HAL_GPIO_WritePin(RS_PORT, RS_PIN, GPIO_PIN_RESET); // Data / command select
@@ -566,7 +595,7 @@ void ili9225_fill_rectangle(int x1, int y1, int x2, int y2, uint16_t color) {
     uint32_t total_pixels = (x2 - x1 + 1) * (y2 - y1 + 1);
     while (total_pixels > 0) {
         uint16_t to_send = (total_pixels > CHUNK_SIZE) ? CHUNK_SIZE : total_pixels;
-        HAL_SPI_Transmit(&hspi1, (uint8_t*)pixel_buffer, to_send * 2, 100);
+        spi1_write((uint8_t*)pixel_buffer, to_send * 2);
         total_pixels -= to_send;
     }
     HAL_GPIO_WritePin(CS_PORT, CS_PIN, GPIO_PIN_SET);

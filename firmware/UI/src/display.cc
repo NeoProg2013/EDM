@@ -4,8 +4,6 @@
 #include "telemetry.h"
 #include "ui.h"
 
-SPI_HandleTypeDef hspi1 = {0}; // For ILI9225
-
 #define MAIN_MENU_ITEM_EDM_STATUS        (0)
 #define MAIN_MENU_ITEM_EDM_MOVEMENT      (1)
 #define MAIN_MENU_ITEM_EDM_PARAMETERS    (2)
@@ -13,63 +11,6 @@ SPI_HandleTypeDef hspi1 = {0}; // For ILI9225
 #define EDM_PARAMETERS_ITEM_T1           (0)
 #define EDM_PARAMETERS_ITEM_T0           (1)
 
-
-
-static void hspi1_init(void) {
-    // PA5 -> SPI1_SCK
-    // PA7 -> SPI1_MOSI
-    GPIO_InitTypeDef gpio = {0};
-    gpio.Pin       = GPIO_PIN_5 | GPIO_PIN_7;
-    gpio.Mode      = GPIO_MODE_AF_PP;
-    gpio.Pull      = GPIO_NOPULL;
-    gpio.Speed     = GPIO_SPEED_FREQ_HIGH;
-    gpio.Alternate = GPIO_AF0_SPI1;
-    HAL_GPIO_Init(GPIOA, &gpio);
-
-    hspi1.Instance               = SPI1;
-    hspi1.Init.Mode              = SPI_MODE_MASTER;         // Master mode
-    hspi1.Init.Direction         = SPI_DIRECTION_2LINES;
-    hspi1.Init.DataSize          = SPI_DATASIZE_8BIT;       // 8 bit
-    hspi1.Init.CLKPolarity       = SPI_POLARITY_LOW;        // CPOL = 0
-    hspi1.Init.CLKPhase          = SPI_PHASE_1EDGE;         // CPHA = 0
-    hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2; // 48 MHz / 4 = 24 MHz
-    hspi1.Init.FirstBit          = SPI_FIRSTBIT_MSB;        // MSB first
-    hspi1.Init.NSS               = SPI_NSS_SOFT;
-    if (HAL_SPI_Init(&hspi1) != HAL_OK) {
-        while(1);
-    }
-
-    __HAL_SPI_ENABLE(&hspi1);
-}
-
-// PA5 - SCK  (SPI1)
-// PA7 - MOSI (SPI1)
-// PA6 - CS
-// PB1 - RS
-// PA9 - RST
-static void init_ili9225_gpio() {
-    // PA6 - CS
-    GPIO_InitTypeDef gpio = {0};
-    gpio.Pin       = GPIO_PIN_6;
-    gpio.Mode      = GPIO_MODE_OUTPUT_PP;
-    gpio.Pull      = GPIO_NOPULL;
-    gpio.Speed     = GPIO_SPEED_FREQ_HIGH;
-    HAL_GPIO_Init(GPIOA, &gpio);
-
-    // PB1 - RS
-    gpio.Pin       = GPIO_PIN_1;
-    gpio.Mode      = GPIO_MODE_OUTPUT_PP;
-    gpio.Pull      = GPIO_NOPULL;
-    gpio.Speed     = GPIO_SPEED_FREQ_HIGH;
-    HAL_GPIO_Init(GPIOB, &gpio);
-
-    // PA9 - RST
-    gpio.Pin       = GPIO_PIN_1;
-    gpio.Mode      = GPIO_MODE_OUTPUT_PP;
-    gpio.Pull      = GPIO_NOPULL;
-    gpio.Speed     = GPIO_SPEED_FREQ_HIGH;
-    HAL_GPIO_Init(GPIOA, &gpio);
-}
 
 static void draw_footer() {
     if (!telemetry_get_connection_state()) {
@@ -360,9 +301,6 @@ static void switch_page(int8_t* menu_item_idx, ui_state_t* ui_state, ui_page_t n
 
 
 void display_init() {
-    hspi1_init();
-    init_ili9225_gpio();
-
     ili9225_init();
     ili9225_clear();
     ili9225_set_font(ili9225_font_terminal6x8);

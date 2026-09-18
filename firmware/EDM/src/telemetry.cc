@@ -17,9 +17,18 @@ static uint8_t g_tx_counter = 0;
 static uint8_t g_rx_counter = 0;
 static uint8_t g_desync_counter = 0;
 
+static tx_msg_t g_tx_msg = {0};
 static rx_msg_t g_rx_msg = {0};
 
 
+
+static uint16_t calc_checksum(const uint8_t* p, uint16_t size) {
+    uint16_t checksum = 0;
+    for (uint8_t i = 0; i < size; ++i) {
+        checksum += p[i];
+    }
+    return checksum;
+}
 
 static void usart2_init() {
     // Init USART
@@ -122,11 +131,25 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef* usart) {
                 break;
             }
 
-            // Frame received
-            g_rx_msg.cmd = g_rx_buffer[1];
+            // Calc checksum
+            uint16_t recv_checksum = BUILD_UINT16(g_rx_buffer[7], g_rx_buffer[8]);
+            uint16_t checksum = calc_checksum(&g_rx_buffer[1], sizeof(rx_msg_t) - sizeof(rx_msg_t::checksum));
+            if (checksum != recv_checksum) { // Bad frame - resync
+                g_is_sync_lost = true;
+                ++g_desync_counter;
+                break;
+            }
+
+            // Save new frame
+            g_rx_msg.cmd        = g_rx_buffer[1];
+            g_rx_msg.edm_status = g_rx_buffer[2];
+            g_rx_msg.t0         = BUILD_UINT16(g_rx_buffer[3],  g_rx_buffer[4]);
+            g_rx_msg.t1         = BUILD_UINT16(g_rx_buffer[5],  g_rx_buffer[6]);
+            g_rx_msg.checksum   = recv_checksum;
 
             ++g_rx_counter;
             g_rx_bytes_count = 0;
+            break;
         }
 
     } while (false);
@@ -159,29 +182,35 @@ void telemetry_init() {
     HAL_UART_Receive_IT(&usart2, &g_rx_byte, 1);
 }
 
-void telemetry_tx(tx_msg_t* msg) {
-    if (!g_tx_ready) {
+void telemetry_process() {
+    // TX
+    static uint32_t s_last_tx_time_ms = 0;
+    if (HAL_GetTick() - s_last_tx_time_ms < 100 || !g_tx_ready) {
         return;
     }
+    s_last_tx_time_ms = HAL_GetTick();
 
     g_tx_buffer[0]  = START_MARKER;
-    g_tx_buffer[1]  = msg->arc_state;
-    g_tx_buffer[2]  = msg->step_state;
-    g_tx_buffer[3]  = msg->freq_hz >> 8;
-    g_tx_buffer[4]  = msg->freq_hz & 0xFF;
-    g_tx_buffer[5]  = msg->arc_counter >> 8;
-    g_tx_buffer[6]  = msg->arc_counter & 0xFF;
-    g_tx_buffer[7]  = msg->tension_g >> 8;
-    g_tx_buffer[8]  = msg->tension_g & 0xFF;
-    g_tx_buffer[9]  = msg->feeder_us >> 8;
-    g_tx_buffer[10] = msg->feeder_us & 0xFF;
-    g_tx_buffer[11] = msg->brake_us >> 8;
-    g_tx_buffer[12] = msg->brake_us & 0xFF;
-    g_tx_buffer[13] = msg->t1 >> 8;
-    g_tx_buffer[14] = msg->t1 & 0xFF;
-    g_tx_buffer[15] = msg->t0 >> 8;
-    g_tx_buffer[16] = msg->t0 & 0xFF;
-    g_tx_buffer[17] = STOP_MARKER;
+    g_tx_buffer[1]  = g_tx_msg.edm_status;
+    g_tx_buffer[2]  = g_tx_msg.step_state;
+    g_tx_buffer[3]  = g_tx_msg.freq_hz >> 8;
+    g_tx_buffer[4]  = g_tx_msg.freq_hz & 0xFF;
+    g_tx_buffer[5]  = g_tx_msg.arc_counter >> 8;
+    g_tx_buffer[6]  = g_tx_msg.arc_counter & 0xFF;
+    g_tx_buffer[7]  = g_tx_msg.tension_g >> 8;
+    g_tx_buffer[8]  = g_tx_msg.tension_g & 0xFF;
+    g_tx_buffer[9]  = g_tx_msg.feeder_us >> 8;
+    g_tx_buffer[10] = g_tx_msg.feeder_us & 0xFF;
+    g_tx_buffer[11] = g_tx_msg.brake_us >> 8;
+    g_tx_buffer[12] = g_tx_msg.brake_us & 0xFF;
+    g_tx_buffer[13] = g_tx_msg.t1 >> 8;
+    g_tx_buffer[14] = g_tx_msg.t1 & 0xFF;
+    g_tx_buffer[15] = g_tx_msg.t0 >> 8;
+    g_tx_buffer[16] = g_tx_msg.t0 & 0xFF;
+    uint16_t checksum = calc_checksum(&g_tx_buffer[1], sizeof(tx_msg_t) - sizeof(tx_msg_t::checksum));
+    g_tx_buffer[17] = checksum >> 8;
+    g_tx_buffer[18] = checksum >> 0;
+    g_tx_buffer[19] = STOP_MARKER;
     if (HAL_UART_Transmit_DMA(&usart2, g_tx_buffer, sizeof(g_tx_buffer)) != HAL_OK) {
         return;
     }
@@ -193,6 +222,9 @@ void telemetry_tx(tx_msg_t* msg) {
 void telemetry_get_rx_msg(rx_msg_t* msg) { 
     __disable_irq(); // To avoid half read g_rx_msg
     *msg = g_rx_msg;
-    g_rx_msg.cmd = rx_msg_t::CMD_START_NONE;
     __enable_irq();
+}
+
+tx_msg_t* telemetry_get_tx_msg() { 
+    return &g_tx_msg;
 }

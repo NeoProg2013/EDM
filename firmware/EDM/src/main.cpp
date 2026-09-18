@@ -3,13 +3,6 @@
 #include "spark.h"
 #include "telemetry.h"
 
-// #define KBRD_T1_INC_BUTTON          (PE2)
-// #define KBRD_T1_DEC_BUTTON          (PE3)
-// #define KBRD_T0_INC_BUTTON          (PE4)
-// #define KBRD_T0_DEC_BUTTON          (PE5)
-// #define KBRD_START_STOP_BUTTON      (PE6)
-
-
 // #define DEBUG_PIN_1                 (PD10)
 // #define DEBUG_PIN_2                 (PD9)
 // #define DEBUG_PIN_3                 (PD8)
@@ -21,21 +14,6 @@ uint16_t g_arc_counter = 0;
 
 bool g_is_enabled = false;
 bool g_is_axis_x_enabled = false;
-
-
-void keyboard_process() {
-    // g_axis_x_period_us += 10 * (int)(digitalRead(KBRD_T1_INC_BUTTON) == LOW);
-    // g_axis_x_period_us -= 10 * (int)(digitalRead(KBRD_T1_DEC_BUTTON) == LOW);
-
-
-    // static int s_last_start_stop_button_state = HIGH;
-    // int v = digitalRead(KBRD_START_STOP_BUTTON);
-    // if (v == LOW && s_last_start_stop_button_state == HIGH) {
-    //     g_is_enabled = !g_is_enabled;
-    // }
-    // s_last_start_stop_button_state = v;
-}
-
 
 TIM_HandleTypeDef g_x_htim = {0};
 TIM_HandleTypeDef g_htim8 = {0};
@@ -247,29 +225,29 @@ int main() {
     while (1) {
         //
         // Telemetry
+        tx_msg_t* tx_msg = telemetry_get_tx_msg();
+        tx_msg->edm_status  = spark_is_enabled(),
+        tx_msg->step_state  = g_is_axis_x_enabled,
+        tx_msg->freq_hz     = spark_get_freq(),
+        tx_msg->arc_counter = g_arc_counter,
+        tx_msg->tension_g   = tension_get_tension_g(),
+        tx_msg->feeder_us   = tension_get_feeder_period_us(),
+        tx_msg->brake_us    = tension_get_brake_period_us(),
+        tx_msg->t1          = spark_get_t1_us(),
+        tx_msg->t0          = spark_get_t0_us(),
+        telemetry_process();
+
         static uint32_t s_last_update_params_time_ms = 0;
-        if (HAL_GetTick() - s_last_update_params_time_ms > 50) {
+        if (HAL_GetTick() - s_last_update_params_time_ms > 500) {
             s_last_update_params_time_ms = HAL_GetTick();
 
-            tx_msg_t tx_msg {
-                .arc_state   = spark_is_enabled(),
-                .step_state  = g_is_axis_x_enabled,
-                .freq_hz     = spark_get_freq(),
-                .arc_counter = g_arc_counter,
-                .tension_g   = tension_get_tension_g(),
-                .feeder_us   = tension_get_feeder_period_us(),
-                .brake_us    = tension_get_brake_period_us(),
-                .t1          = spark_get_t1_us(),
-                .t0          = spark_get_t0_us(),
-            };
-            telemetry_tx(&tx_msg);
+            rx_msg_t rx_msg;
+            telemetry_get_rx_msg(&rx_msg);
 
-            keyboard_process();
-        }
-        rx_msg_t rx_msg;
-        telemetry_get_rx_msg(&rx_msg);
-        if (rx_msg.cmd == rx_msg_t::CMD_START_STOP_EDM) {
-            g_is_enabled = !g_is_enabled;
+            g_is_enabled = rx_msg.edm_status;
+            // TODO: 
+            // uint16_t t0;
+            // uint16_t t1;
         }
 
         //

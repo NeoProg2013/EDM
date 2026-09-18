@@ -8,7 +8,7 @@
 
 static TIM_HandleTypeDef g_spark_htim = {0};
 
-static uint16_t g_spark_t1_us = 3;
+static uint16_t g_spark_t1_us = 1;
 static uint16_t g_spark_t0_us = 300;
 static uint16_t g_spark_freq  = 0;
 static bool g_is_enabled     = false;

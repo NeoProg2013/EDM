@@ -3,7 +3,7 @@
 #include "core.h"
 
 struct rx_msg_t {
-    uint8_t  arc_state;
+    uint8_t  edm_status;
     uint8_t  step_state;
     uint16_t freq_hz;
     uint16_t arc_counter;

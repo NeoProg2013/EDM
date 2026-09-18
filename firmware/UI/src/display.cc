@@ -2,7 +2,7 @@
 #include "display.h"
 #include "ILI9225.h"
 #include "telemetry.h"
-#include "ui.h"
+#include "controls.h"
 
 #define MAIN_MENU_ITEM_EDM_STATUS        (0)
 #define MAIN_MENU_ITEM_EDM_MOVEMENT      (1)
@@ -10,6 +10,16 @@
 
 #define EDM_PARAMETERS_ITEM_T1           (0)
 #define EDM_PARAMETERS_ITEM_T0           (1)
+
+// UI pages
+enum ui_page_t {
+    PAGE_EDM_STATUS,
+    PAGE_EDM_MOVEMENT,
+    PAGE_EDM_PARAMETERS,
+    PAGE_MENU,
+};
+ui_page_t g_page = PAGE_EDM_STATUS;
+
 
 
 static void draw_footer() {
@@ -85,6 +95,9 @@ static void draw_page_edm_status(rx_msg_t* telemetry) {
         ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, " Feed (us):"); y += 13;
         ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "Brake (us):"); y += 13;
         y += 13;
+        y += 13;
+        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "   Command:"); y += 13;
+        ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "EDM status:"); y += 13;
         ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "   T1 (us):"); y += 13;
         ili9225_draw_string(5, y, ILI9225_COLOR_WHITE, "   T0 (us):"); y += 13;
         
@@ -95,9 +108,9 @@ static void draw_page_edm_status(rx_msg_t* telemetry) {
 
     char itoa_buffer[12];
 
-    // State
+    // EDM status
     if (s_call_counter == 2) {
-        if (telemetry->arc_state) {
+        if (telemetry->edm_status) {
             ili9225_draw_string(135, 10, ILI9225_COLOR_GREEN, "[ ON]", 5);
         } else {
             ili9225_draw_string(135, 10, ILI9225_COLOR_RED, "[OFF]", 5);
@@ -142,23 +155,72 @@ static void draw_page_edm_status(rx_msg_t* telemetry) {
     }
     y += 13;
     y += 13;
+    y += 13;
+
+    tx_msg_t* tx_msg = telemetry_get_tx_msg();
+
+    // CMD
+    if (s_call_counter == 8) {
+        ili9225_draw_string(90, y, ILI9225_COLOR_YELLOW, "-----", 5);
+
+        switch (tx_msg->cmd) {
+        case tx_msg_t::CMD_NONE:
+            ili9225_draw_string(130, y, ILI9225_COLOR_YELLOW, "NONE", 5);
+            break;
+        case tx_msg_t::CMD_MOVE_UP:
+            ili9225_draw_string(130, y, ILI9225_COLOR_YELLOW, "MV_UP", 5);
+            break;
+        case tx_msg_t::CMD_MOVE_DOWN:
+            ili9225_draw_string(130, y, ILI9225_COLOR_YELLOW, "MV_DW", 5);
+            break;
+        case tx_msg_t::CMD_MOVE_LEFT:
+            ili9225_draw_string(130, y, ILI9225_COLOR_YELLOW, "MV_LF", 5);
+            break;
+        case tx_msg_t::CMD_MOVE_RIGHT:
+            ili9225_draw_string(130, y, ILI9225_COLOR_YELLOW, "MV_RH", 5);
+            break;
+        default:
+            ili9225_draw_string(130, y, ILI9225_COLOR_YELLOW, "?????", 5);
+            break;
+        }
+        return;
+    }
+    y += 13;
+
+    // EDM status
+    if (s_call_counter == 9) {
+        if (telemetry->edm_status) {
+            ili9225_draw_string(90, y, ILI9225_COLOR_GREEN, "ON", 3);
+        } else {
+            ili9225_draw_string(90, y, ILI9225_COLOR_RED, "OFF", 3);
+        }
+        if (tx_msg->edm_status) {
+            ili9225_draw_string(130, y, ILI9225_COLOR_GREEN, "ON", 3);
+        } else {
+            ili9225_draw_string(130, y, ILI9225_COLOR_RED, "OFF", 3);
+        }
+        return;
+    }
+    y += 13;
 
     // T1
-    if (s_call_counter == 8) {
+    if (s_call_counter == 10) {
         ili9225_draw_string(90, y, ILI9225_COLOR_YELLOW, itoa(telemetry->t1, itoa_buffer, 10), 5);
+        ili9225_draw_string(130, y, ILI9225_COLOR_YELLOW, itoa(tx_msg->t1, itoa_buffer, 10), 5);
         return;
     }
     y += 13;
 
     // T0
-    if (s_call_counter == 9) {
+    if (s_call_counter == 11) {
         ili9225_draw_string(90, y, ILI9225_COLOR_YELLOW, itoa(telemetry->t0, itoa_buffer, 10), 5);
+        ili9225_draw_string(130, y, ILI9225_COLOR_YELLOW, itoa(tx_msg->t0, itoa_buffer, 10), 5);
         return;
     }
     y += 13;
 
     // TX/RX/DS
-    if (s_call_counter == 10) {
+    if (s_call_counter == 12) {
         draw_footer();
         return;
     }
@@ -293,9 +355,9 @@ static void draw_page_menu(int8_t menu_item_idx) {
     s_call_counter = 0;
 }
 
-static void switch_page(int8_t* menu_item_idx, ui_state_t* ui_state, ui_page_t new_page) {
+static void switch_page(int8_t* menu_item_idx, controls_state_t* controls_state, ui_page_t new_page) {
     ili9225_clear();
-    ui_state->page = new_page;
+    g_page = new_page;
     *menu_item_idx = 0;
 }
 
@@ -314,77 +376,77 @@ void display_process() {
     rx_msg_t rx_msg;
     telemetry_get_rx_msg(&rx_msg);
 
-    ui_state_t* ui_state = ui_get_state();
+    controls_state_t* controls_state = controls_get_state();
 
-    if (ui_state->page == ui_page_t::PAGE_EDM_STATUS) {
+    if (g_page == ui_page_t::PAGE_EDM_STATUS) {
         draw_page_edm_status(&rx_msg);
 
         if (is_buttons_release) {
-            if (ui_state->button_start_stop) {
+            if (controls_state->btn_start_stop) {
                 telemetry_get_tx_msg()->edm_status = !telemetry_get_tx_msg()->edm_status;
-            } else if (ui_state->button_center) {
-                switch_page(&s_menu_item_idx, ui_state, ui_page_t::PAGE_MENU);
+            } else if (controls_state->btn_center) {
+                switch_page(&s_menu_item_idx, controls_state, ui_page_t::PAGE_MENU);
             }
         }
-    } else if (ui_state->page == ui_page_t::PAGE_EDM_MOVEMENT) {
-        draw_page_movement(ui_state->button_up, ui_state->button_down, ui_state->button_left, ui_state->button_right);
+    } else if (g_page == ui_page_t::PAGE_EDM_MOVEMENT) {
+        draw_page_movement(controls_state->btn_up, controls_state->btn_down, controls_state->btn_left, controls_state->btn_right);
 
         if (is_buttons_release) {
-            if (ui_state->button_center) {
-                switch_page(&s_menu_item_idx, ui_state, ui_page_t::PAGE_MENU);
+            if (controls_state->btn_center) {
+                switch_page(&s_menu_item_idx, controls_state, ui_page_t::PAGE_MENU);
             } 
             telemetry_get_tx_msg()->cmd = tx_msg_t::CMD_NONE;
         } else {
-            if (ui_state->button_up)    telemetry_get_tx_msg()->cmd = tx_msg_t::CMD_MOVE_UP;
-            if (ui_state->button_down)  telemetry_get_tx_msg()->cmd = tx_msg_t::CMD_MOVE_DOWN;
-            if (ui_state->button_left)  telemetry_get_tx_msg()->cmd = tx_msg_t::CMD_MOVE_LEFT;
-            if (ui_state->button_right) telemetry_get_tx_msg()->cmd = tx_msg_t::CMD_MOVE_RIGHT;
+            if (controls_state->btn_up)    telemetry_get_tx_msg()->cmd = tx_msg_t::CMD_MOVE_UP;
+            if (controls_state->btn_down)  telemetry_get_tx_msg()->cmd = tx_msg_t::CMD_MOVE_DOWN;
+            if (controls_state->btn_left)  telemetry_get_tx_msg()->cmd = tx_msg_t::CMD_MOVE_LEFT;
+            if (controls_state->btn_right) telemetry_get_tx_msg()->cmd = tx_msg_t::CMD_MOVE_RIGHT;
         }
-    } else if (ui_state->page == ui_page_t::PAGE_EDM_PARAMETERS) {
-        draw_page_edm_parameters(&rx_msg, s_menu_item_idx, is_buttons_release, ui_state->button_left, ui_state->button_right);
+    } else if (g_page == ui_page_t::PAGE_EDM_PARAMETERS) {
+        draw_page_edm_parameters(&rx_msg, s_menu_item_idx, is_buttons_release, controls_state->btn_left, controls_state->btn_right);
 
         if (is_buttons_release) {
-            if (ui_state->button_down) {
+            if (controls_state->btn_down) {
                 s_menu_item_idx++;
                 if (s_menu_item_idx > 1) {
                     s_menu_item_idx = 0;
                 }
-            } else if (ui_state->button_up) {
+            } else if (controls_state->btn_up) {
                 s_menu_item_idx--;
                 if (s_menu_item_idx < 0) {
                     s_menu_item_idx = 1;
                 }
-            } else if (ui_state->button_center) {
-                switch_page(&s_menu_item_idx, ui_state, ui_page_t::PAGE_MENU);
+            } else if (controls_state->btn_center) {
+                switch_page(&s_menu_item_idx, controls_state, ui_page_t::PAGE_MENU);
             } 
         }
-    } else if (ui_state->page == ui_page_t::PAGE_MENU) {
+    } else if (g_page == ui_page_t::PAGE_MENU) {
         draw_page_menu(s_menu_item_idx);
 
         if (is_buttons_release) {
-            if (ui_state->button_down) {
+            if (controls_state->btn_down) {
                 s_menu_item_idx++;
                 if (s_menu_item_idx > 2) {
                     s_menu_item_idx = 0;
                 }
-            } else if (ui_state->button_up) {
+            } else if (controls_state->btn_up) {
                 s_menu_item_idx--;
                 if (s_menu_item_idx < 0) {
                     s_menu_item_idx = 2;
                 }
-            } else if (ui_state->button_center) {
+            } else if (controls_state->btn_center) {
                 if (s_menu_item_idx == MAIN_MENU_ITEM_EDM_STATUS) {
-                    switch_page(&s_menu_item_idx, ui_state, ui_page_t::PAGE_EDM_STATUS);
+                    switch_page(&s_menu_item_idx, controls_state, ui_page_t::PAGE_EDM_STATUS);
                 } else if (s_menu_item_idx == MAIN_MENU_ITEM_EDM_MOVEMENT) {
-                    switch_page(&s_menu_item_idx, ui_state, ui_page_t::PAGE_EDM_MOVEMENT);
+                    switch_page(&s_menu_item_idx, controls_state, ui_page_t::PAGE_EDM_MOVEMENT);
                 } else if (s_menu_item_idx == MAIN_MENU_ITEM_EDM_PARAMETERS) {
-                    switch_page(&s_menu_item_idx, ui_state, ui_page_t::PAGE_EDM_PARAMETERS);
+                    switch_page(&s_menu_item_idx, controls_state, ui_page_t::PAGE_EDM_PARAMETERS);
                 }
             }
         }
     }
 
     // All buttons released?
-    is_buttons_release = (!ui_state->button_start_stop && !ui_state->button_left && !ui_state->button_down && 
-                          !ui_state->button_center && !ui_state->button_right && !ui_state->button_up);
+    is_buttons_release = (!controls_state->btn_start_stop && !controls_state->btn_left && !controls_state->btn_down && 
+                          !controls_state->btn_center && !controls_state->btn_right && !controls_state->btn_up);
 }

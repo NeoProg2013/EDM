@@ -1,7 +1,7 @@
 #include "core.h"
 #include "display.h"
 #include "telemetry.h"
-#include "ui.h"
+#include "controls.h"
 #include "spi1.h"
 
 
@@ -30,15 +30,15 @@ static void system_clock_init() {
     }
 
     __HAL_RCC_SYSCFG_CLK_ENABLE();
-    __HAL_RCC_SPI1_CLK_ENABLE();
-    // __HAL_RCC_DMA1_CLK_ENABLE();
-    // __HAL_RCC_USART1_CLK_ENABLE();
-    // __HAL_RCC_I2C1_CLK_ENABLE();
     __HAL_RCC_GPIOA_CLK_ENABLE();
     __HAL_RCC_GPIOB_CLK_ENABLE();
     __HAL_RCC_GPIOC_CLK_ENABLE();
     __HAL_RCC_GPIOD_CLK_ENABLE();
-
+    __HAL_RCC_SPI1_CLK_ENABLE();
+    __HAL_RCC_DMA1_CLK_ENABLE();
+    __HAL_RCC_USART1_CLK_ENABLE();
+    // __HAL_RCC_I2C1_CLK_ENABLE();
+    
     // PC13 - LED
     GPIO_InitTypeDef gpio = {0};
     gpio.Pin       = GPIO_PIN_13;
@@ -46,26 +46,23 @@ static void system_clock_init() {
     gpio.Pull      = GPIO_NOPULL;
     gpio.Speed     = GPIO_SPEED_FREQ_HIGH;
     HAL_GPIO_Init(GPIOC, &gpio);
-
     HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
+
+    __HAL_AFIO_REMAP_SWJ_NOJTAG();
 }
 
 int main() {
     HAL_Init();
     system_clock_init();
 
-    // spi1_init();
     display_init();
-    // telemetry_init();
-    // ui_init();
+    telemetry_init();
+    controls_init();
 
     while (true) {
-        
-        // uint8_t data = 0xAA;
-        // spi1_write(&data, 1);
         display_process();
-        // ui_process();
-        // telemetry_process();
+        controls_process();
+        telemetry_process();
     }
 
     return 0;

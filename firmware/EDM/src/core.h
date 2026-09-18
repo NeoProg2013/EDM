@@ -7,6 +7,7 @@
 #include <math.h>
 
 #define constrain(amt, low, high) ((amt) < (low) ? (low) : ((amt) > (high) ? (high) : (amt)))
+#define BUILD_UINT16(msb, lsb)   (((uint16_t)(msb) << 8) | (uint8_t)(lsb))
 
 // SYSCLK = 168 MHz 
 // HCLK (AHB) = 168 MHz 

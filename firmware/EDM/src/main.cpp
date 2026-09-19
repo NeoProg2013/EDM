@@ -2,29 +2,19 @@
 #include "tension.h"
 #include "spark.h"
 #include "telemetry.h"
+#include "motion_controller.h"
 
 // #define DEBUG_PIN_1                 (PD10)
 // #define DEBUG_PIN_2                 (PD9)
 // #define DEBUG_PIN_3                 (PD8)
 // #define DEBUG_PIN_4                 (PD15)
 
+motion_controller_t motion_controller;
 
-uint16_t g_axis_x_period_us = 10000;
-uint16_t g_arc_counter = 0;
 
 bool g_is_enabled = false;
-bool g_is_axis_x_enabled = false;
-
-TIM_HandleTypeDef g_x_htim = {0};
+uint16_t g_arc_counter = 0;
 TIM_HandleTypeDef g_htim8 = {0};
-
-
-#define X_EN_PIN                (GPIO_PIN_10)
-#define X_EN_PORT               (GPIOA)
-#define X_STEP_PIN              (GPIO_PIN_11)
-#define X_STEP_PORT             (GPIOA)
-#define X_DIR_PIN               (GPIO_PIN_12)
-#define X_DIR_PORT              (GPIOA)
 
 
 #define FEEDBACK_PIN            (GPIO_PIN_6)
@@ -85,37 +75,6 @@ void init_feedback() {
     HAL_TIM_IC_Start(&g_htim8, TIM_CHANNEL_2);
 }
 
-void start_axis_x() {
-    HAL_TIM_PWM_Start(&g_x_htim, TIM_CHANNEL_4);
-    // HAL_GPIO_WritePin(X_EN_PORT, X_EN_PIN, GPIO_PIN_RESET);
-    g_is_axis_x_enabled = true;
-}
-
-void stop_axis_x() {
-    HAL_TIM_PWM_Stop(&g_x_htim, TIM_CHANNEL_4);
-    // HAL_GPIO_WritePin(X_EN_PORT, X_EN_PIN, GPIO_PIN_SET);
-    g_is_axis_x_enabled = false;
-}
-
-void enable_axis_x() {
-    HAL_TIM_PWM_Start(&g_x_htim, TIM_CHANNEL_4);
-    HAL_GPIO_WritePin(X_EN_PORT, X_EN_PIN, GPIO_PIN_RESET);
-}
-
-void disable_axis_x() {
-    HAL_TIM_PWM_Stop(&g_x_htim, TIM_CHANNEL_4);
-    HAL_GPIO_WritePin(X_EN_PORT, X_EN_PIN, GPIO_PIN_SET);
-    g_is_axis_x_enabled = false;
-}
-
-void update_axis_x_speed() {
-    if (g_axis_x_period_us < 1000)  g_axis_x_period_us = 1000;
-    if (g_axis_x_period_us > 30000) g_axis_x_period_us = 30000;
-
-    // Update X axis freq
-    __HAL_TIM_SET_AUTORELOAD(&g_x_htim, g_axis_x_period_us);
-    __HAL_TIM_SET_COMPARE(&g_x_htim, TIM_CHANNEL_4, g_axis_x_period_us / 2);
-}
 
 
 static void system_clock_init() {
@@ -173,61 +132,18 @@ int main() {
     telemetry_init();
     tension_init();
     spark_pwm_init();
-
-    //
-    // Setup X axis
-
-    // STEP: PA11 PWM
-    GPIO_InitTypeDef x_step_gpio = {0};
-    x_step_gpio.Pin       = X_STEP_PIN;
-    x_step_gpio.Mode      = GPIO_MODE_AF_PP;
-    x_step_gpio.Pull      = GPIO_NOPULL;
-    x_step_gpio.Speed     = GPIO_SPEED_FREQ_HIGH;
-    x_step_gpio.Alternate = GPIO_AF1_TIM1;
-    HAL_GPIO_Init(X_STEP_PORT, &x_step_gpio);
-
-    // Setup TIM1: ABP2 clock source (168 MHz)
-    g_x_htim.Instance               = TIM1;
-    g_x_htim.Init.Prescaler         = 167; // Prescaler = 168 - 1 = 83: 1 tick = 1 us
-    g_x_htim.Init.CounterMode       = TIM_COUNTERMODE_UP;
-    g_x_htim.Init.Period            = g_axis_x_period_us;
-    g_x_htim.Init.ClockDivision     = TIM_CLOCKDIVISION_DIV1;
-    g_x_htim.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE; // To avoid glitch for period update
-    HAL_TIM_PWM_Init(&g_x_htim);
-
-    // Setup PWM channel (50%)
-    TIM_OC_InitTypeDef x_pwm = {0};
-    x_pwm.OCMode = TIM_OCMODE_PWM1; // HIGH while counter < CCR
-    x_pwm.Pulse  = g_axis_x_period_us / 2; // CCR
-    HAL_TIM_PWM_ConfigChannel(&g_x_htim, &x_pwm, TIM_CHANNEL_4);
-
-    __HAL_TIM_MOE_ENABLE(&g_x_htim);
-
-    // EN: PA10
-    GPIO_InitTypeDef x_en_gpio = {0};
-    x_en_gpio.Pin   = X_EN_PIN;
-    x_en_gpio.Mode  = GPIO_MODE_OUTPUT_PP;
-    x_en_gpio.Speed = GPIO_SPEED_FREQ_LOW;
-    HAL_GPIO_Init(X_EN_PORT, &x_en_gpio);
-    HAL_GPIO_WritePin(X_EN_PORT, X_EN_PIN, GPIO_PIN_SET);
-
-    // DIR: PA12
-    GPIO_InitTypeDef x_dir_gpio = {0};
-    x_dir_gpio.Pin   = X_DIR_PIN;
-    x_dir_gpio.Mode  = GPIO_MODE_OUTPUT_PP;
-    x_dir_gpio.Speed = GPIO_SPEED_FREQ_LOW;
-    HAL_GPIO_Init(X_DIR_PORT, &x_dir_gpio);
-    HAL_GPIO_WritePin(X_DIR_PORT, X_DIR_PIN, GPIO_PIN_SET);
-
-
     init_feedback();
+
+    // Motion core
+    motion_controller.init();
+    motion_controller.move_to(100, 100);
 
     while (1) {
         //
         // Telemetry
         tx_msg_t* tx_msg = telemetry_get_tx_msg();
         tx_msg->edm_status  = spark_is_enabled(),
-        tx_msg->step_state  = g_is_axis_x_enabled,
+        tx_msg->step_state  = true,
         tx_msg->freq_hz     = spark_get_freq(),
         tx_msg->arc_counter = g_arc_counter,
         tx_msg->tension_g   = tension_get_tension_g(),
@@ -270,12 +186,12 @@ int main() {
             // low_us < 1 - for 1 us T1
 
             if (current_cnt > 1000 || low_us < 1) { // current_cnt > 1000 us -- no pulse long time
-                stop_axis_x();
+                motion_controller.lock();
                 s_arc_last_time_ms = HAL_GetTick();
                 ++g_arc_counter;
             } else {
                 if (HAL_GetTick() - s_arc_last_time_ms > 100) { // 100 ms
-                    start_axis_x();
+                    motion_controller.unlock();
                 }
             }
         }
@@ -285,20 +201,24 @@ int main() {
         tension_process();
 
         //
+        // Motion core
+        motion_controller.process();
+
+        //
         // Shutdown
         static bool is_periph_enabled = false;
         if (g_is_enabled) {
             if (!is_periph_enabled) {
                 tension_start();
                 spark_pwm_start();
-                enable_axis_x();
+                motion_controller.unlock();
                 is_periph_enabled = true;
             }
         } else {
             if (is_periph_enabled) {
                 tension_stop();
                 spark_pwm_stop();
-                disable_axis_x();
+                motion_controller.lock();
                 is_periph_enabled = false;
             }
         }

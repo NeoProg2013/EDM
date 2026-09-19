@@ -265,7 +265,11 @@ int main() {
             // - При обычной работе генератора во время реза, длительность 1-2 us.
             // Мы ждем пока станок полностью прорежет текущий отрезок и только потом делаем следующий шаг
             // В качестве критерия используется отсутствие искры, т.е. длительность HIGH >= 3 более 100мс
-            if (current_cnt > 1000 || low_us < 2) { // current_cnt > 1000 us -- no pulse long time
+            //
+            // low_us < 2 - for 3 us T1
+            // low_us < 1 - for 1 us T1
+
+            if (current_cnt > 1000 || low_us < 1) { // current_cnt > 1000 us -- no pulse long time
                 stop_axis_x();
                 s_arc_last_time_ms = HAL_GetTick();
                 ++g_arc_counter;

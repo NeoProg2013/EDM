@@ -11,10 +11,13 @@ private:
     GPIO_TypeDef* m_step_port   { };
     uint16_t      m_step_pin    { };
 
+    uint64_t m_t1_time_us       {50};
+    uint64_t m_t0_time_us       {50};
+
     bool m_is_step_active       { };
     bool m_step_pin_state       { };
-    uint32_t m_t1_ms            { };
-    uint32_t m_t0_ms            { };
+    uint64_t m_start_t1_us      { };
+    uint64_t m_start_t0_us      { };
 
 public:
     /// ***************************************************************************
@@ -37,13 +40,16 @@ public:
 
     /// ***************************************************************************
     /// @brief  Enable stepper driver output stage
+    /// @param  enabled: true - power on, false - power off
     /// ***************************************************************************
-    void enable();
+    void set_power_state(bool enabled);
 
     /// ***************************************************************************
-    /// @brief  Disable stepper driver output stage
+    /// @brief  Set step pulse parameters
+    /// @param  t1_us: HIGH state time, [us]
+    /// @param  t0_us: LOW state time, [us]
     /// ***************************************************************************
-    void disable();
+    void set_timings(uint16_t t1_us, uint16_t t0_us);
 
     /// ***************************************************************************
     /// @brief  Set logical motion direction for the driver

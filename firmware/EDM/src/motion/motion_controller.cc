@@ -6,10 +6,10 @@ static constexpr uint16_t X_EN_PIN   = GPIO_PIN_10;
 static constexpr uint16_t X_STEP_PIN = GPIO_PIN_11;
 static constexpr uint16_t X_DIR_PIN  = GPIO_PIN_12;
 
-static GPIO_TypeDef* const Y_PORT    = GPIOB;
-static constexpr uint16_t Y_EN_PIN   = GPIO_PIN_13;
-static constexpr uint16_t Y_STEP_PIN = GPIO_PIN_14;
-static constexpr uint16_t Y_DIR_PIN  = GPIO_PIN_15;
+static GPIO_TypeDef* const Y_PORT    = GPIOC;
+static constexpr uint16_t Y_EN_PIN   = GPIO_PIN_7;
+static constexpr uint16_t Y_STEP_PIN = GPIO_PIN_8;
+static constexpr uint16_t Y_DIR_PIN  = GPIO_PIN_9;
 
 
 

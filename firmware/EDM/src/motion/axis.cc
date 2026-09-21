@@ -15,6 +15,7 @@ void axis_t::init() {
     m_position = 0;
     m_target   = 0;
     m_driver->init();
+    m_driver->set_power_state(true);
 }
 
 /// ***************************************************************************

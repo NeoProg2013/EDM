@@ -47,22 +47,28 @@ void stepper_driver_t::init() {
     step_gpio.Speed = GPIO_SPEED_FREQ_HIGH;
     HAL_GPIO_Init(m_step_port, &step_gpio);
     HAL_GPIO_WritePin(m_step_port, m_step_pin, GPIO_PIN_RESET);
-
-    disable();
 }
 
 /// ***************************************************************************
 /// @brief  Enable stepper driver output stage
+/// @param  enabled: true - power on, false - power off
 /// ***************************************************************************
-void stepper_driver_t::enable() {
-    HAL_GPIO_WritePin(m_en_port, m_en_pin, GPIO_PIN_RESET);
+void stepper_driver_t::set_power_state(bool enabled) {
+    if (enabled) {
+        HAL_GPIO_WritePin(m_en_port, m_en_pin, GPIO_PIN_RESET);
+    } else {
+        HAL_GPIO_WritePin(m_en_port, m_en_pin, GPIO_PIN_SET);
+    }
 }
 
 /// ***************************************************************************
-/// @brief  Disable stepper driver output stage
-/// ***************************************************************************    
-void stepper_driver_t::disable() {
-    HAL_GPIO_WritePin(m_en_port, m_en_pin, GPIO_PIN_SET);
+/// @brief  Set step pulse parameters
+/// @param  t1_us: HIGH state time, [us]
+/// @param  t0_us: LOW state time, [us]
+/// ***************************************************************************
+void stepper_driver_t::set_timings(uint16_t t1_us, uint16_t t0_us) {
+    m_t1_time_us = t1_us;
+    m_t0_time_us = t0_us;
 }
 
 /// ***************************************************************************
@@ -82,7 +88,7 @@ void stepper_driver_t::step() {
     }
 
     HAL_GPIO_WritePin(m_step_port, m_step_pin, GPIO_PIN_SET);
-    m_t1_ms = HAL_GetTick();
+    m_start_t1_us = HAL_GetTickUs();
     m_is_step_active = true;
     m_step_pin_state = true;
 }
@@ -106,14 +112,14 @@ void stepper_driver_t::process() {
     //  1ms  _____
     // _____| 1ms
     if (m_step_pin_state) {
-        if (HAL_GetTick() - m_t1_ms >= 1) {
+        if (HAL_GetTickUs() - m_start_t1_us >= m_t1_time_us) {
             HAL_GPIO_WritePin(m_step_port, m_step_pin, GPIO_PIN_RESET);
-            m_t0_ms = HAL_GetTick();
+            m_start_t0_us = HAL_GetTickUs();
             m_step_pin_state = false;
         }
         return;
     } 
-    else if (HAL_GetTick() - m_t0_ms >= 1) {
+    else if (HAL_GetTickUs() - m_start_t0_us >= m_t0_time_us) {
         m_is_step_active = false;
     }
 }

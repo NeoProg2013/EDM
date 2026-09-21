@@ -9,6 +9,8 @@
 #define constrain(amt, low, high) ((amt) < (low) ? (low) : ((amt) > (high) ? (high) : (amt)))
 #define BUILD_UINT16(msb, lsb)   (((uint16_t)(msb) << 8) | (uint8_t)(lsb))
 
+extern uint64_t HAL_GetTickUs();
+
 // SYSCLK = 168 MHz 
 // HCLK (AHB) = 168 MHz 
 // PCLK1 (APB1) = 42 MHz

@@ -129,14 +129,21 @@ int main() {
 
     //
     // Periph
-    telemetry_init();
-    tension_init();
-    spark_pwm_init();
-    init_feedback();
+    // telemetry_init();
+    // tension_init();
+    // spark_pwm_init();
+    // init_feedback();
 
     // Motion core
     motion_controller.init();
-    motion_controller.move_to(100, 100);
+    motion_controller.move_to(-10000, 0);
+    // HAL_Delay(3000);
+
+    while (1) {
+        //
+        // Motion core
+        motion_controller.process();
+    }
 
     while (1) {
         //

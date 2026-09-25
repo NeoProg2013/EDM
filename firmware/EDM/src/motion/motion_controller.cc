@@ -2,14 +2,14 @@
 #include "motion_controller.h"
 
 static GPIO_TypeDef* const X_PORT    = GPIOA;
-static constexpr uint16_t X_EN_PIN   = GPIO_PIN_10;
+static constexpr uint16_t X_EN_PIN   = GPIO_PIN_8;
 static constexpr uint16_t X_STEP_PIN = GPIO_PIN_11;
 static constexpr uint16_t X_DIR_PIN  = GPIO_PIN_12;
 
-static GPIO_TypeDef* const Y_PORT    = GPIOC;
-static constexpr uint16_t Y_EN_PIN   = GPIO_PIN_7;
-static constexpr uint16_t Y_STEP_PIN = GPIO_PIN_8;
-static constexpr uint16_t Y_DIR_PIN  = GPIO_PIN_9;
+static GPIO_TypeDef* const Y_PORT    = GPIOA;
+static constexpr uint16_t Y_EN_PIN   = GPIO_PIN_8;
+static constexpr uint16_t Y_STEP_PIN = GPIO_PIN_9;
+static constexpr uint16_t Y_DIR_PIN  = GPIO_PIN_10;
 
 
 
@@ -17,10 +17,11 @@ static constexpr uint16_t Y_DIR_PIN  = GPIO_PIN_9;
 /// @brief  Create motion controller object with internal axis and pin mapping
 /// ***************************************************************************
 motion_controller_t::motion_controller_t() :
-    m_x_driver(X_PORT, X_EN_PIN, X_PORT, X_DIR_PIN, X_PORT, X_STEP_PIN),
-    m_y_driver(Y_PORT, Y_EN_PIN, Y_PORT, Y_DIR_PIN, Y_PORT, Y_STEP_PIN),
+    m_x_driver(GPIOA, GPIO_PIN_8, GPIOA, X_DIR_PIN, GPIOA, X_STEP_PIN),
+    m_y_driver(GPIOA, GPIO_PIN_8, GPIOA, Y_DIR_PIN, GPIOA, Y_STEP_PIN),
     m_x_axis(&m_x_driver),
     m_y_axis(&m_y_driver) {
+        
 }
 
 /// ***************************************************************************

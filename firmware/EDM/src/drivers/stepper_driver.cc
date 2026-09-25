@@ -26,12 +26,14 @@ stepper_driver_t::stepper_driver_t(GPIO_TypeDef* en_port, uint16_t en_pin,
 /// ***************************************************************************
 void stepper_driver_t::init() {
     GPIO_InitTypeDef en_gpio = {0};
-    en_gpio.Pin   = m_en_pin;
-    en_gpio.Mode  = GPIO_MODE_OUTPUT_PP;
-    en_gpio.Pull  = GPIO_NOPULL;
-    en_gpio.Speed = GPIO_SPEED_FREQ_LOW;
-    HAL_GPIO_Init(m_en_port, &en_gpio);
-    HAL_GPIO_WritePin(m_en_port, m_en_pin, GPIO_PIN_SET); // Disable stepper
+    if (m_en_port) {
+        en_gpio.Pin   = m_en_pin;
+        en_gpio.Mode  = GPIO_MODE_OUTPUT_PP;
+        en_gpio.Pull  = GPIO_NOPULL;
+        en_gpio.Speed = GPIO_SPEED_FREQ_LOW;
+        HAL_GPIO_Init(m_en_port, &en_gpio);
+        HAL_GPIO_WritePin(m_en_port, m_en_pin, GPIO_PIN_SET); // Disable stepper
+    }
 
     GPIO_InitTypeDef dir_gpio = {0};
     dir_gpio.Pin   = m_dir_pin;
@@ -54,6 +56,10 @@ void stepper_driver_t::init() {
 /// @param  enabled: true - power on, false - power off
 /// ***************************************************************************
 void stepper_driver_t::set_power_state(bool enabled) {
+    if (!m_en_port) {
+        return;
+    }
+    
     if (enabled) {
         HAL_GPIO_WritePin(m_en_port, m_en_pin, GPIO_PIN_RESET);
     } else {

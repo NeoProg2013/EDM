@@ -45,38 +45,35 @@ void motion_controller_t::process() {
         if (!dequeue_motion(&motion)) {
             return;
         }
-        start_motion(motion);
+        start_new_motion(motion);
     }
 
     // Current motion done?
-    if (m_x_axis.get_position() == m_motion.target_x && m_y_axis.get_position() == m_motion.target_y) {
+    if (m_x_axis.is_target_reached() && m_y_axis.is_target_reached()) {
         m_is_busy = false;
         return;
     }
 
-    // Motion locked?
+    // Motion steps locked?
     if (m_is_locked) {
         return;
     }
 
-    // We ready do next step?
+    // We ready do next motion step?
     if (!m_x_axis.is_ready() || !m_y_axis.is_ready()) {
         return;
     }
 
-    int32_t current_x = m_x_axis.get_position();
-    int32_t current_y = m_y_axis.get_position();
-
+    // Bresenham's line algorithm
     if (m_dx >= m_dy) {
         // Main axis = X
         // Every controller tick we try to advance X once.
         // Y is advanced only when accumulated error says so.
-        if (current_x != m_motion.target_x) {
+        if (!m_x_axis.is_target_reached()) {
             m_x_axis.step();
             m_err += m_dy;
         }
-
-        if (m_err >= m_dx && current_y != m_motion.target_y) {
+        if (m_err >= m_dx && !m_y_axis.is_target_reached()) {
             m_err -= m_dx;
             m_y_axis.step();
         }
@@ -84,12 +81,11 @@ void motion_controller_t::process() {
         // Main axis = Y
         // Every controller tick we try to advance Y once.
         // X is advanced only when accumulated error says so.
-        if (current_y != m_motion.target_y) {
+        if (!m_y_axis.is_target_reached()) {
             m_y_axis.step();
             m_err += m_dx;
         }
-
-        if (m_err >= m_dy && current_x != m_motion.target_x) {
+        if (m_err >= m_dy && !m_x_axis.is_target_reached()) {
             m_err -= m_dy;
             m_x_axis.step();
         }
@@ -98,15 +94,20 @@ void motion_controller_t::process() {
 
 /// ***************************************************************************
 /// @brief  Queue new linear motion to target point
-/// @param  target_x: target X coordinate in steps
-/// @param  target_y: target Y coordinate in steps
+/// @param  x: target X coordinate in steps
+/// @param  y: target Y coordinate in steps
 /// ***************************************************************************
-void motion_controller_t::move_to(int32_t target_x, int32_t target_y) {
-    motion_t motion {
-        .target_x = target_x,
-        .target_y = target_y
-    };
-    enqueue_motion(motion);
+void motion_controller_t::move_to(int32_t x, int32_t y) {
+    enqueue_motion(motion_t{ .type = motion_t::type_t::ABSOLUTE, .x = x, .y = y });
+}
+
+/// ***************************************************************************
+/// @brief  Queue new linear motion offset
+/// @param  x: target X coordinate in steps
+/// @param  y: target Y coordinate in steps
+/// ***************************************************************************
+void motion_controller_t::move_by(int32_t x, int32_t y) {
+    enqueue_motion(motion_t{ .type = motion_t::type_t::RELATIVE, .x = x, .y = y });
 }
 
 /// ***************************************************************************
@@ -182,22 +183,28 @@ bool motion_controller_t::dequeue_motion(motion_t* motion) {
 /// @brief  Start one queued motion as active motion
 /// @param  motion: queued motion command
 /// ***************************************************************************
-void motion_controller_t::start_motion(const motion_t& motion) {
-    m_x_axis.set_target(motion.target_x);
-    m_y_axis.set_target(motion.target_y);
+void motion_controller_t::start_new_motion(const motion_t& motion) {
+    // Set target point
+    if (motion.ABSOLUTE) {
+        m_x_axis.set_target(motion.x);
+        m_y_axis.set_target(motion.y);
+    } else { // RELATIVE
+        m_x_axis.set_target(m_x_axis.get_position() + motion.x);
+        m_y_axis.set_target(m_y_axis.get_position() + motion.y);
+    }
+    m_current_motion = motion;
 
-    m_start_x = m_x_axis.get_position();
-    m_start_y = m_y_axis.get_position();
-    m_motion = motion;
-
-    m_dx = abs(motion.target_x - m_start_x);
-    m_dy = abs(motion.target_y - m_start_y);
-    m_err = 0;
-
-    if (m_start_x == motion.target_x && m_start_y == motion.target_y) {
-        m_is_busy = false;
+    // Motion already done?
+    if (m_x_axis.is_target_reached() && m_x_axis.is_target_reached()) {
         return;
     }
+
+    // Bresenham's line algorithm
+    int32_t x0 = m_x_axis.get_position();
+    int32_t y0 = m_y_axis.get_position();
+    m_dx = abs(motion.x - x0);
+    m_dy = abs(motion.y - y0);
+    m_err = 0;
 
     m_is_busy = true;
 }

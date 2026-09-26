@@ -130,13 +130,13 @@ int main() {
     //
     // Periph
     telemetry_init();
-    tension_init();
-    tension_start();
-    spark_pwm_init();
-    init_feedback();
+    // tension_init();
+    // tension_start();
+    // spark_pwm_init();
+    // init_feedback();
 
     // Motion core
-    // motion_controller.init();
+    motion_controller.init();
     // motion_controller.move_to(-10000, -10000);
     // HAL_Delay(3000);
 
@@ -161,17 +161,41 @@ int main() {
         tx_msg->t0          = spark_get_t0_us(),
         telemetry_process();
 
-        static uint32_t s_last_update_params_time_ms = 0;
-        if (HAL_GetTick() - s_last_update_params_time_ms > 500) {
-            s_last_update_params_time_ms = HAL_GetTick();
-
+        if (telemetry_get_connection_state()) {
             rx_msg_t rx_msg;
             telemetry_get_rx_msg(&rx_msg);
 
-            g_is_enabled = rx_msg.edm_status;
-            // TODO: 
-            // uint16_t t0;
-            // uint16_t t1;
+            // Update EDM parameters
+            static uint32_t s_last_update_params_time_ms = 0;
+            if (HAL_GetTick() - s_last_update_params_time_ms > 500) {
+                s_last_update_params_time_ms = HAL_GetTick();
+
+                g_is_enabled = rx_msg.edm_status;
+                // TODO: 
+                // uint16_t t0;
+                // uint16_t t1;
+            }
+
+            // Manual head adjust
+            if (!motion_controller.is_busy()) {
+                static const int32_t OFFSET = 1000;
+                switch (rx_msg.cmd) {
+                case rx_msg_t::CMD_MOVE_UP:
+                    motion_controller.move_by(0, OFFSET);
+                    break;
+                case rx_msg_t::CMD_MOVE_DOWN:
+                    motion_controller.move_by(0, -OFFSET);
+                    break;
+                case rx_msg_t::CMD_MOVE_LEFT:
+                    motion_controller.move_by(-OFFSET, 0);
+                    break;
+                case rx_msg_t::CMD_MOVE_RIGHT:
+                    motion_controller.move_by(OFFSET, 0);
+                    break;
+                }
+            }
+        } else { // Connection lost - shutdown
+            g_is_enabled = false;
         }
 
         //

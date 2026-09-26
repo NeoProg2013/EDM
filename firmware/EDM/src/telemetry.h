@@ -37,6 +37,7 @@ void telemetry_init();
 void telemetry_process();
 void telemetry_get_rx_msg(rx_msg_t* msg);
 tx_msg_t* telemetry_get_tx_msg();
+bool telemetry_get_connection_state();
 
 
 #endif // __TELEMETRY_H__

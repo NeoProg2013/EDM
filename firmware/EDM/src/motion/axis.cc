@@ -37,11 +37,7 @@ void axis_t::set_target(int32_t target) {
 /// @brief  Start one step toward target position if axis is ready
 /// ***************************************************************************
 void axis_t::step() {
-    if (!is_ready()) {
-        return;
-    }
-
-    if (m_position == m_target) {
+    if (!is_ready() || is_target_reached()) {
         return;
     }
 
@@ -54,20 +50,4 @@ void axis_t::step() {
     }
 
     m_driver->step();
-}
-
-/// ***************************************************************************
-/// @brief  Check whether axis is ready for the next step
-/// @return true if no step pulse is currently active
-/// ***************************************************************************
-bool axis_t::is_ready() const {
-    return m_driver->is_step_done();
-}
-
-/// ***************************************************************************
-/// @brief  Get current axis position in steps
-/// @return current position in steps
-/// ***************************************************************************
-int32_t axis_t::get_position() const {
-    return m_position;
 }

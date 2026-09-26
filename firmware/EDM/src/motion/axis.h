@@ -41,13 +41,25 @@ public:
     /// @brief  Check whether axis is ready for the next step
     /// @return true if no step pulse is currently active
     /// ***************************************************************************
-    bool is_ready() const;
+    bool is_ready() const { return m_driver->is_step_done(); }
+
+    /// ***************************************************************************
+    /// @brief  Check whether the axis has reached its target position
+    /// @return true if current position matches the target position
+    /// ***************************************************************************
+    bool is_target_reached() const { return m_position == m_target; }
 
     /// ***************************************************************************
     /// @brief  Get current axis position in steps
     /// @return current position in steps
     /// ***************************************************************************
-    int32_t get_position() const;
+    int32_t get_position() const { return m_position; }
+
+    /// ***************************************************************************
+    /// @brief  Get target axis position in steps
+    /// @return target position in steps
+    /// ***************************************************************************
+    int32_t get_target_position() const { return m_target; }
 };
 
 #endif // _AXIS_H_

@@ -6,8 +6,13 @@
 
 class motion_controller_t {
     struct motion_t {
-        int32_t target_x            { };
-        int32_t target_y            { };
+        enum type_t {
+            ABSOLUTE,
+            RELATIVE,
+        };
+        type_t  type    { };
+        int32_t x       { };
+        int32_t y       { };
     };
 
     static constexpr uint32_t QUEUE_SIZE = 64;
@@ -18,13 +23,11 @@ private:
     axis_t m_x_axis;
     axis_t m_y_axis;
 
-    motion_t m_motion               { };
+    motion_t m_current_motion       { };
     motion_t m_queue[QUEUE_SIZE]    { };
 
     bool     m_is_locked            { };
     bool     m_is_busy              { };
-    int32_t  m_start_x              { };
-    int32_t  m_start_y              { };
     uint32_t m_queue_head           { };
     uint32_t m_queue_tail           { };
     uint32_t m_queue_size           { };
@@ -56,6 +59,13 @@ public:
     /// @param  target_y: target Y coordinate in steps
     /// ***************************************************************************
     void move_to(int32_t target_x, int32_t target_y);
+
+    /// ***************************************************************************
+    /// @brief  Queue new linear motion offset
+    /// @param  target_x: target X coordinate in steps
+    /// @param  target_y: target Y coordinate in steps
+    /// ***************************************************************************
+    void move_by(int32_t target_x, int32_t target_y);
 
     /// ***************************************************************************
     /// @brief  Lock motion progression and prevent issuing new steps
@@ -98,7 +108,7 @@ private:
     /// @brief  Start one queued motion as active motion
     /// @param  motion: queued motion command
     /// ***************************************************************************
-    void start_motion(const motion_t& motion);
+    void start_new_motion(const motion_t& motion);
 };
 
 #endif // _MOTION_CONTROLLER_H_

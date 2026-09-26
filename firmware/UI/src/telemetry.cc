@@ -30,10 +30,10 @@ static tx_msg_t g_tx_msg = {
 
 static void usart1_init();
 static void usart1_gpio_init();
+static uint16_t calc_checksum(const uint8_t* p, uint16_t size);
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef* huart);
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef* huart);
 void HAL_UART_ErrorCallback(UART_HandleTypeDef* huart);
-static uint16_t calc_checksum(const uint8_t* p, uint16_t size);
 
 
 
@@ -46,16 +46,20 @@ void telemetry_init() {
 }
 
 void telemetry_process() {
+    //
+    // Check RX status
     static uint8_t s_prev_rx_counter = 0;
     static uint32_t s_last_check_time_ms = 0;
     if (HAL_GetTick() - s_last_check_time_ms > 500) {
         g_is_connected = (s_prev_rx_counter != g_rx_counter);
         s_prev_rx_counter = g_rx_counter;
+        s_last_check_time_ms = HAL_GetTick();
     }
 
-    // TX
+    //
+    // TX. Send packet each 50 ms
     static uint32_t s_last_tx_time_ms = 0;
-    if (HAL_GetTick() - s_last_tx_time_ms < 100 || !g_tx_ready) {
+    if (HAL_GetTick() - s_last_tx_time_ms < 50 || !g_tx_ready) {
         return;
     }
     s_last_tx_time_ms = HAL_GetTick();
@@ -88,7 +92,6 @@ uint8_t telemetry_get_tx_counter()     { return g_tx_counter;     }
 uint8_t telemetry_get_desync_counter() { return g_desync_counter; }
 bool telemetry_get_sync_state()        { return g_is_sync_lost;   }
 bool telemetry_get_connection_state()  { return g_is_connected;   }
-
 
 
 
@@ -145,6 +148,14 @@ static void usart1_gpio_init() {
     rx.Pull      = GPIO_PULLUP;
     rx.Speed     = GPIO_SPEED_FREQ_HIGH;
     HAL_GPIO_Init(GPIOA, &rx);
+}
+
+static uint16_t calc_checksum(const uint8_t* p, uint16_t size) {
+    uint16_t checksum = 0;
+    for (uint8_t i = 0; i < size; ++i) {
+        checksum += p[i];
+    }
+    return checksum;
 }
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef* huart) {
@@ -234,12 +245,4 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef* huart) {
     HAL_UART_Receive_IT(&usart1, &g_rx_byte, 1);
     g_is_sync_lost = true;
     ++g_desync_counter;
-}
-
-static uint16_t calc_checksum(const uint8_t* p, uint16_t size) {
-    uint16_t checksum = 0;
-    for (uint8_t i = 0; i < size; ++i) {
-        checksum += p[i];
-    }
-    return checksum;
 }

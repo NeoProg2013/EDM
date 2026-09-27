@@ -1,24 +1,14 @@
 #include "core.h"
 #include "motion_controller.h"
 
-static GPIO_TypeDef* const X_PORT    = GPIOA;
-static constexpr uint16_t X_EN_PIN   = GPIO_PIN_8;
-static constexpr uint16_t X_STEP_PIN = GPIO_PIN_11;
-static constexpr uint16_t X_DIR_PIN  = GPIO_PIN_12;
-
-static GPIO_TypeDef* const Y_PORT    = GPIOA;
-static constexpr uint16_t Y_EN_PIN   = GPIO_PIN_8;
-static constexpr uint16_t Y_STEP_PIN = GPIO_PIN_9;
-static constexpr uint16_t Y_DIR_PIN  = GPIO_PIN_10;
-
 
 
 /// ***************************************************************************
 /// @brief  Create motion controller object with internal axis and pin mapping
 /// ***************************************************************************
 motion_controller_t::motion_controller_t() :
-    m_x_driver(GPIOA, GPIO_PIN_8, GPIOA, X_DIR_PIN, GPIOA, X_STEP_PIN),
-    m_y_driver(GPIOA, GPIO_PIN_8, GPIOA, Y_DIR_PIN, GPIOA, Y_STEP_PIN),
+    m_x_driver(GPIOA, GPIO_PIN_8, GPIOA, GPIO_PIN_12, GPIOA, GPIO_PIN_11),
+    m_y_driver(GPIOA, GPIO_PIN_8, GPIOA, GPIO_PIN_10, GPIOA, GPIO_PIN_9),
     m_x_axis(&m_x_driver),
     m_y_axis(&m_y_driver) {
         
@@ -195,15 +185,15 @@ void motion_controller_t::start_new_motion(const motion_t& motion) {
     m_current_motion = motion;
 
     // Motion already done?
-    if (m_x_axis.is_target_reached() && m_x_axis.is_target_reached()) {
+    if (m_x_axis.is_target_reached() && m_y_axis.is_target_reached()) {
         return;
     }
 
     // Bresenham's line algorithm
     int32_t x0 = m_x_axis.get_position();
     int32_t y0 = m_y_axis.get_position();
-    m_dx = abs(motion.x - x0);
-    m_dy = abs(motion.y - y0);
+    m_dx = abs(m_x_axis.get_target_position() - x0);
+    m_dy = abs(m_y_axis.get_target_position() - y0);
     m_err = 0;
 
     m_is_busy = true;

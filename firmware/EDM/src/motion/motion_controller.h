@@ -89,6 +89,9 @@ public:
     /// ***************************************************************************
     bool is_busy() const;
 
+    int16_t get_current_x() const { return m_x_axis.get_position(); }
+    int16_t get_current_y() const { return m_y_axis.get_position(); }
+
 private:
     /// ***************************************************************************
     /// @brief  Add one motion command to ring buffer queue

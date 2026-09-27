@@ -59,27 +59,32 @@ void telemetry_process() {
     s_last_tx_time_ms = HAL_GetTick();
 
     // Prepare message
-    g_tx_buffer[0]  = START_MARKER;
-    g_tx_buffer[1]  = g_tx_msg.edm_status;
-    g_tx_buffer[2]  = g_tx_msg.step_state;
-    g_tx_buffer[3]  = g_tx_msg.freq_hz >> 8;
-    g_tx_buffer[4]  = g_tx_msg.freq_hz & 0xFF;
-    g_tx_buffer[5]  = g_tx_msg.arc_counter >> 8;
-    g_tx_buffer[6]  = g_tx_msg.arc_counter & 0xFF;
-    g_tx_buffer[7]  = g_tx_msg.tension_g >> 8;
-    g_tx_buffer[8]  = g_tx_msg.tension_g & 0xFF;
-    g_tx_buffer[9]  = g_tx_msg.feeder_us >> 8;
-    g_tx_buffer[10] = g_tx_msg.feeder_us & 0xFF;
-    g_tx_buffer[11] = g_tx_msg.brake_us >> 8;
-    g_tx_buffer[12] = g_tx_msg.brake_us & 0xFF;
-    g_tx_buffer[13] = g_tx_msg.t1 >> 8;
-    g_tx_buffer[14] = g_tx_msg.t1 & 0xFF;
-    g_tx_buffer[15] = g_tx_msg.t0 >> 8;
-    g_tx_buffer[16] = g_tx_msg.t0 & 0xFF;
+    int idx = 0;
+    g_tx_buffer[idx++] = START_MARKER;
+    g_tx_buffer[idx++] = g_tx_msg.edm_status;
+    g_tx_buffer[idx++] = g_tx_msg.step_state;
+    g_tx_buffer[idx++] = g_tx_msg.freq_hz >> 8;
+    g_tx_buffer[idx++] = g_tx_msg.freq_hz & 0xFF;
+    g_tx_buffer[idx++] = g_tx_msg.arc_counter >> 8;
+    g_tx_buffer[idx++] = g_tx_msg.arc_counter & 0xFF;
+    g_tx_buffer[idx++] = g_tx_msg.tension_g >> 8;
+    g_tx_buffer[idx++] = g_tx_msg.tension_g & 0xFF;
+    g_tx_buffer[idx++] = g_tx_msg.feeder_us >> 8;
+    g_tx_buffer[idx++] = g_tx_msg.feeder_us & 0xFF;
+    g_tx_buffer[idx++] = g_tx_msg.brake_us >> 8;
+    g_tx_buffer[idx++] = g_tx_msg.brake_us & 0xFF;
+    g_tx_buffer[idx++] = g_tx_msg.t1 >> 8;
+    g_tx_buffer[idx++] = g_tx_msg.t1 & 0xFF;
+    g_tx_buffer[idx++] = g_tx_msg.t0 >> 8;
+    g_tx_buffer[idx++] = g_tx_msg.t0 & 0xFF;
+    g_tx_buffer[idx++] = g_tx_msg.x >> 8;
+    g_tx_buffer[idx++] = g_tx_msg.x & 0xFF;
+    g_tx_buffer[idx++] = g_tx_msg.y >> 8;
+    g_tx_buffer[idx++] = g_tx_msg.y & 0xFF;
     uint16_t checksum = calc_checksum(&g_tx_buffer[1], sizeof(tx_msg_t) - sizeof(tx_msg_t::checksum));
-    g_tx_buffer[17] = checksum >> 8;
-    g_tx_buffer[18] = checksum >> 0;
-    g_tx_buffer[19] = STOP_MARKER;
+    g_tx_buffer[idx++] = checksum >> 8;
+    g_tx_buffer[idx++] = checksum >> 0;
+    g_tx_buffer[idx++] = STOP_MARKER;
     if (HAL_UART_Transmit_DMA(&usart2, g_tx_buffer, sizeof(g_tx_buffer)) != HAL_OK) {
         return;
     }

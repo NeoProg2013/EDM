@@ -203,7 +203,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef* huart) {
             }
 
             // Calc checksum
-            uint16_t recv_checksum = BUILD_UINT16(g_rx_buffer[17], g_rx_buffer[18]);
+            uint16_t recv_checksum = BUILD_UINT16(g_rx_buffer[21], g_rx_buffer[22]);
             uint16_t checksum = calc_checksum(&g_rx_buffer[1], sizeof(rx_msg_t) - sizeof(rx_msg_t::checksum));
             if (checksum != recv_checksum) { // Bad frame - resync
                 g_is_sync_lost = true;
@@ -221,6 +221,8 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef* huart) {
             g_rx_msg.brake_us    = BUILD_UINT16(g_rx_buffer[11], g_rx_buffer[12]);
             g_rx_msg.t1          = BUILD_UINT16(g_rx_buffer[13], g_rx_buffer[14]);
             g_rx_msg.t0          = BUILD_UINT16(g_rx_buffer[15], g_rx_buffer[16]);
+            g_rx_msg.x           = BUILD_UINT16(g_rx_buffer[17], g_rx_buffer[18]);
+            g_rx_msg.y           = BUILD_UINT16(g_rx_buffer[19], g_rx_buffer[20]);
             g_rx_msg.checksum    = recv_checksum;
 
             g_rx_bytes_count = 0;

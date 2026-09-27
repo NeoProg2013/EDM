@@ -130,10 +130,10 @@ int main() {
     //
     // Periph
     telemetry_init();
-    // tension_init();
-    // tension_start();
-    // spark_pwm_init();
-    // init_feedback();
+    tension_init();
+    tension_start();
+    spark_pwm_init();
+    init_feedback();
 
     // Motion core
     motion_controller.init();
@@ -150,15 +150,17 @@ int main() {
         //
         // Telemetry
         tx_msg_t* tx_msg = telemetry_get_tx_msg();
-        tx_msg->edm_status  = spark_is_enabled(),
-        tx_msg->step_state  = true,
-        tx_msg->freq_hz     = spark_get_freq(),
-        tx_msg->arc_counter = g_arc_counter,
-        tx_msg->tension_g   = tension_get_tension_g(),
-        tx_msg->feeder_us   = tension_get_feeder_period_us(),
-        tx_msg->brake_us    = tension_get_brake_period_us(),
-        tx_msg->t1          = spark_get_t1_us(),
-        tx_msg->t0          = spark_get_t0_us(),
+        tx_msg->edm_status  = spark_is_enabled();
+        tx_msg->step_state  = true;
+        tx_msg->freq_hz    = spark_get_freq();
+        tx_msg->arc_counter= g_arc_counter;
+        tx_msg->tension_g  = tension_get_tension_g();
+        tx_msg->feeder_us  = tension_get_feeder_period_us();
+        tx_msg->brake_us   = tension_get_brake_period_us();
+        tx_msg->t1         = spark_get_t1_us();
+        tx_msg->t0         = spark_get_t0_us();
+        tx_msg->x          = motion_controller.get_current_x();
+        tx_msg->y          = motion_controller.get_current_y();
         telemetry_process();
 
         if (telemetry_get_connection_state()) {

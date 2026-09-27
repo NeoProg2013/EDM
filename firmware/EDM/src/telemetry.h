@@ -12,6 +12,8 @@ typedef struct {
     uint16_t brake_us;
     uint16_t t1;
     uint16_t t0;
+    int16_t  x;
+    int16_t  y;
     uint16_t checksum;
 } tx_msg_t;
 

@@ -1,8 +1,6 @@
 #include "core.h"
 #include "motion_controller.h"
 
-
-
 /// ***************************************************************************
 /// @brief  Create motion controller object with internal axis and pin mapping
 /// ***************************************************************************
@@ -87,7 +85,7 @@ void motion_controller_t::process() {
 /// @param  x: target X coordinate in steps
 /// @param  y: target Y coordinate in steps
 /// ***************************************************************************
-void motion_controller_t::move_to(int32_t x, int32_t y) {
+void motion_controller_t::move_abs(int32_t x, int32_t y) {
     enqueue_motion(motion_t{ .type = motion_t::type_t::ABSOLUTE, .x = x, .y = y });
 }
 
@@ -96,39 +94,10 @@ void motion_controller_t::move_to(int32_t x, int32_t y) {
 /// @param  x: target X coordinate in steps
 /// @param  y: target Y coordinate in steps
 /// ***************************************************************************
-void motion_controller_t::move_by(int32_t x, int32_t y) {
+void motion_controller_t::move_rel(int32_t x, int32_t y) {
     enqueue_motion(motion_t{ .type = motion_t::type_t::RELATIVE, .x = x, .y = y });
 }
 
-/// ***************************************************************************
-/// @brief  Lock motion progression and prevent issuing new steps
-/// ***************************************************************************
-void motion_controller_t::lock() {
-    m_is_locked = true;
-}
-
-/// ***************************************************************************
-/// @brief  Unlock motion progression and allow issuing new steps
-/// ***************************************************************************
-void motion_controller_t::unlock() {
-    m_is_locked = false;
-}
-
-/// ***************************************************************************
-/// @brief  Check lock state
-/// @return true if motion progression is locked
-/// ***************************************************************************
-bool motion_controller_t::is_locked() const {
-    return m_is_locked;
-}
-
-/// ***************************************************************************
-/// @brief  Check whether controller is executing active motion
-/// @return true if active motion is in progress
-/// ***************************************************************************
-bool motion_controller_t::is_busy() const {
-    return m_is_busy;
-}
 
 
 //

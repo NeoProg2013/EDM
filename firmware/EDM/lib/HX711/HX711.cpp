@@ -57,8 +57,8 @@ int32_t hx711_t::read() {
 	for (uint8_t i = 0; i < 24; i++) {
 		// Min pulse width 0.2 us. 40-50 NOP = ~0.25-0.3 us on 168 Mhz
         HAL_GPIO_WritePin(m_sck_port, m_sck_pin, GPIO_PIN_SET);
-        for (volatile uint32_t n = 0; n < 45; n++) {
-			__NOP();
+        for (uint32_t n = 0; n < 45; n++) {
+			asm volatile("" : : : "memory");
 		}
 
 		// Read data
@@ -69,21 +69,21 @@ int32_t hx711_t::read() {
 
 		// Min pulse width 0.2 us. 40-50 NOP = ~0.25-0.3 us on 168 Mhz
         HAL_GPIO_WritePin(m_sck_port, m_sck_pin, GPIO_PIN_RESET);
-        for (volatile uint32_t n = 0; n < 45; n++) {
-			__NOP();
+        for (uint32_t n = 0; n < 45; n++) {
+			asm volatile("" : : : "memory");
 		}
     }
 
 	// Set the channel and the gain factor for the next reading using the clock pin.
 	for (uint8_t i = 0; i < m_gain; i++) {
         HAL_GPIO_WritePin(m_sck_port, m_sck_pin, GPIO_PIN_SET);
-        for (volatile uint32_t n = 0; n < 45; n++) {
-			__NOP();
+        for (uint32_t n = 0; n < 45; n++) {
+			asm volatile("" : : : "memory");
 		}
 
         HAL_GPIO_WritePin(m_sck_port, m_sck_pin, GPIO_PIN_RESET);
-        for (volatile uint32_t n = 0; n < 45; n++) {
-			__NOP();
+        for (uint32_t n = 0; n < 45; n++) {
+			asm volatile("" : : : "memory");
 		}
     }
 

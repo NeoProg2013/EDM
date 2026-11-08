@@ -58,39 +58,35 @@ public:
     /// @param  target_x: target X coordinate in steps
     /// @param  target_y: target Y coordinate in steps
     /// ***************************************************************************
-    void move_to(int32_t target_x, int32_t target_y);
+    void move_abs(int32_t target_x, int32_t target_y);
 
     /// ***************************************************************************
     /// @brief  Queue new linear motion offset
     /// @param  target_x: target X coordinate in steps
     /// @param  target_y: target Y coordinate in steps
     /// ***************************************************************************
-    void move_by(int32_t target_x, int32_t target_y);
+    void move_rel(int32_t target_x, int32_t target_y);
 
     /// ***************************************************************************
-    /// @brief  Lock motion progression and prevent issuing new steps
+    /// @brief Check motion queue size
     /// ***************************************************************************
-    void lock();
+    bool is_motion_queue_full() const { return m_queue_size == QUEUE_SIZE; }
 
     /// ***************************************************************************
-    /// @brief  Unlock motion progression and allow issuing new steps
+    /// @brief  Lock / unlock motion progression and prevent issuing new steps
     /// ***************************************************************************
-    void unlock();
-
-    /// ***************************************************************************
-    /// @brief  Check lock state
-    /// @return true if motion progression is locked
-    /// ***************************************************************************
-    bool is_locked() const;
+    void lock()   { m_is_locked = true;  }
+    void unlock() { m_is_locked = false; }
+    bool is_locked() const { return m_is_locked; }
 
     /// ***************************************************************************
     /// @brief  Check whether controller is executing active motion
     /// @return true if active motion is in progress
     /// ***************************************************************************
-    bool is_busy() const;
+    bool is_busy() const { return m_is_busy; }
 
-    int16_t get_current_x() const { return m_x_axis.get_position(); }
-    int16_t get_current_y() const { return m_y_axis.get_position(); }
+    int32_t get_current_x() const { return m_x_axis.get_position(); }
+    int32_t get_current_y() const { return m_y_axis.get_position(); }
 
 private:
     /// ***************************************************************************

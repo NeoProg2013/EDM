@@ -150,8 +150,8 @@ int main() {
         //
         // Telemetry
         tx_msg_t* tx_msg = telemetry_get_tx_msg();
-        tx_msg->edm_status  = spark_is_enabled();
-        tx_msg->step_state  = true;
+        tx_msg->edm_status = spark_is_enabled();
+        tx_msg->step_state = true;
         tx_msg->freq_hz    = spark_get_freq();
         tx_msg->arc_counter= g_arc_counter;
         tx_msg->tension_g  = tension_get_tension_g();
@@ -183,16 +183,16 @@ int main() {
                 static const int32_t OFFSET = 1000;
                 switch (rx_msg.cmd) {
                 case rx_msg_t::CMD_MOVE_UP:
-                    motion_controller.move_by(0, OFFSET);
+                    motion_controller.move_rel(0, OFFSET);
                     break;
                 case rx_msg_t::CMD_MOVE_DOWN:
-                    motion_controller.move_by(0, -OFFSET);
+                    motion_controller.move_rel(0, -OFFSET);
                     break;
                 case rx_msg_t::CMD_MOVE_LEFT:
-                    motion_controller.move_by(-OFFSET, 0);
+                    motion_controller.move_rel(-OFFSET, 0);
                     break;
                 case rx_msg_t::CMD_MOVE_RIGHT:
-                    motion_controller.move_by(OFFSET, 0);
+                    motion_controller.move_rel(OFFSET, 0);
                     break;
                 }
             }

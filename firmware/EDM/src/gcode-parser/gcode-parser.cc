@@ -65,7 +65,7 @@ gcode_parser_t::result_t gcode_parser_t::parse_g_command(uint32_t code, std::str
 
         line.remove_prefix(1);
 
-        std::optional<int32_t> value = parse_int32(line);
+        std::optional<float> value = parse_float(line);
         if (!value.has_value()) {
             return std::unexpected(false);
         }
@@ -172,24 +172,67 @@ std::optional<uint32_t> gcode_parser_t::parse_uint32(std::string_view& line) con
 }
 
 /// ***************************************************************************
-/// @brief  Parse signed 32-bit integer from the line head
+/// @brief  Parse floating-point value from the line head
 /// @param  line: remaining input line, advanced on success
 /// @return parsed value or empty optional on failure
 /// ***************************************************************************
-std::optional<int32_t> gcode_parser_t::parse_int32(std::string_view& line) const {
-    bool is_negative = false;
-    if (!line.empty() && (line.front() == '+' || line.front() == '-')) {
-        is_negative = (line.front() == '-');
-        line.remove_prefix(1);
-    }
-
-    std::optional<uint32_t> result = parse_uint32(line);
-    if (!result.has_value()) {
+std::optional<float> gcode_parser_t::parse_float(std::string_view& line) const {
+    if (line.empty()) {
         return std::nullopt;
     }
 
-    if (is_negative) {
-        return -static_cast<int32_t>(result.value());
+    uint32_t token_length = 0;
+
+    // Skip sign
+    if (line[token_length] == '+' || line[token_length] == '-') {
+        ++token_length;
+        if (token_length >= line.size()) {
+            return std::nullopt;
+        }
     }
-    return static_cast<int32_t>(result.value());
+
+    // Search end of number
+    bool has_digit = false;
+    bool has_dot = false;
+
+    while (token_length < line.size()) {
+        char ch = line[token_length];
+        if (isdigit(ch)) {
+            has_digit = true;
+            ++token_length;
+            continue;
+        }
+
+        if (ch == '.' && !has_dot) {
+            has_dot = true;
+            ++token_length;
+            continue;
+        }
+
+        break;
+    }
+
+    if (!has_digit) {
+        return std::nullopt;
+    }
+
+    // Copy token to local buffer
+    char buffer[32] { };
+    if (token_length >= sizeof(buffer)) {
+        return std::nullopt;
+    }
+    memcpy(buffer, line.data(), token_length);
+
+    // Convert string to float
+    char* end_ptr = nullptr;
+    float value = strtof(buffer, &end_ptr);
+    if (end_ptr == buffer) {
+        return std::nullopt;
+    }
+
+    // Remove parsed token
+    line.remove_prefix(token_length);
+    
+    return value;
 }
+

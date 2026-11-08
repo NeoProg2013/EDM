@@ -9,8 +9,8 @@ enum class gcode_code_t {
 
 struct gcode_cmd_t {
     gcode_code_t code;
-    std::optional<int32_t> x { };
-    std::optional<int32_t> y { };
+    std::optional<float> x { };
+    std::optional<float> y { };
 };
 
 class gcode_parser_t {
@@ -55,11 +55,11 @@ protected:
     std::optional<uint32_t> parse_uint32(std::string_view& line) const;
 
     /// ***************************************************************************
-    /// @brief  Parse signed 32-bit integer from the line head
+    /// @brief  Parse floating-point value from the line head
     /// @param  line: remaining input line, advanced on success
     /// @return parsed value or empty optional on failure
     /// ***************************************************************************
-    std::optional<int32_t> parse_int32(std::string_view& line) const;
+    std::optional<float> parse_float(std::string_view& line) const;
 };
 
 #endif // GCODE_PARSER_H
